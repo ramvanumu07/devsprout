@@ -68,7 +68,7 @@ router.post('/update', authenticateToken, async (req, res) => {
     if (nextPhase) progressData.next_phase = nextPhase
     if (currentAssignment !== undefined) progressData.current_assignment = currentAssignment
     if (totalAssignments !== undefined) progressData.total_assignments = totalAssignments
-    if (completedAssignments !== undefined) progressData.assignments_completed = completedAssignments
+    if (completedAssignments !== undefined) progressData.completed_assignments = completedAssignments
     if (topicCompleted !== undefined) progressData.topic_completed = topicCompleted
     if (completedAt) progressData.completed_at = completedAt
     if (accessedAt) progressData.accessed_at = accessedAt

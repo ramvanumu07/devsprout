@@ -7,12 +7,6 @@ import './Dashboard.css'
 const Dashboard = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  
-  // Debug user data
-  console.log('🏠 Dashboard - Current user object:', user)
-  console.log('🏠 Dashboard - User name specifically:', user?.name)
-  console.log('🏠 Dashboard - User name type:', typeof user?.name)
-  console.log('🏠 Dashboard - User name length:', user?.name?.length)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -134,45 +128,26 @@ const Dashboard = () => {
     console.log(`   - Course progress count: ${courseProgress.length}`)
     console.log(`   - Course progress data:`, courseProgress)
 
-    // Step 1: Count fully completed topics (topic_completed = true)
-    const fullyCompleted = courseProgress.filter(p =>
+    // CORRECTED LOGIC: Only count topics as completed if topic_completed = true
+    const completed = courseProgress.filter(p =>
       p.topic_completed === true
     ).length
-    const completedPhases = fullyCompleted * 3
 
-    console.log(`   - Fully completed topics: ${fullyCompleted}`)
-    console.log(`   - Completed phases: ${completedPhases}`)
+    // CORRECTED LOGIC: Count topics that are started but not fully completed
+    const inProgress = courseProgress.filter(p =>
+      p.topic_completed !== true  // Any topic that exists but isn't fully completed
+    ).length
 
-    // Step 2: Find current active topic (most recently updated, not completed)
-    const activeTopics = courseProgress.filter(p => p.topic_completed !== true)
-    const currentTopic = activeTopics.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))[0]
+    console.log(`   - Completed: ${completed}`)
+    console.log(`   - In Progress: ${inProgress}`)
 
-    // Step 3: Calculate current topic phase progress
-    let currentPhaseProgress = 0
-    if (currentTopic) {
-      if (currentTopic.phase === 'playtime') {
-        currentPhaseProgress = 1  // Session completed
-      } else if (currentTopic.phase === 'assignment') {
-        currentPhaseProgress = 2  // Session + PlayTime completed
-      }
-      // If phase === 'session', currentPhaseProgress remains 0 (just started)
-      
-      console.log(`   - Current topic: ${currentTopic.topic_id}, Phase: ${currentTopic.phase}`)
-      console.log(`   - Current phase progress: ${currentPhaseProgress}`)
-    }
-
-    // Step 4: Calculate final percentage
-    const totalCompletedPhases = completedPhases + currentPhaseProgress
-    const totalPossiblePhases = courseTopics.length * 3
-    const percentage = totalPossiblePhases > 0 ? Math.round((totalCompletedPhases / totalPossiblePhases) * 100) : 0
-
-    console.log(`   - Total completed phases: ${totalCompletedPhases}`)
-    console.log(`   - Total possible phases: ${totalPossiblePhases}`)
-    console.log(`   - Accurate percentage: ${percentage}%`)
+    const total = courseTopics.length
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
 
     return {
-      completed_topics: fullyCompleted,
-      total_topics: courseTopics.length,
+      completed_topics: completed,
+      in_progress_topics: inProgress,
+      total_topics: total,
       completion_percentage: percentage
     }
   }
@@ -317,112 +292,6 @@ const Dashboard = () => {
     return topicProgress?.phase || 'session'
   }
 
-  const getCurrentActiveTopic = () => {
-    console.log('🔍 getCurrentActiveTopic - Debug Info:')
-    console.log('   - userProgress length:', userProgress.length)
-    console.log('   - userProgress data:', userProgress)
-    
-    // Find current active topic (most recently updated, not completed)
-    const activeTopics = userProgress.filter(p => p.topic_completed !== true)
-    console.log('   - activeTopics count:', activeTopics.length)
-    console.log('   - activeTopics data:', activeTopics)
-    
-    const currentTopicProgress = activeTopics.sort((a, b) => 
-      new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-    )[0]
-    
-    console.log('   - currentTopicProgress:', currentTopicProgress)
-
-    if (currentTopicProgress) {
-      const topic = getTopicById(currentTopicProgress.topic_id)
-      console.log('   - found topic:', topic)
-      
-      const result = {
-        ...topic,
-        phase: currentTopicProgress.phase,
-        progress: currentTopicProgress
-      }
-      console.log('   - returning result:', result)
-      return result
-    }
-    
-    // Fallback: if no active topics, try to find the most recent topic with any progress
-    console.log('   - no active topics, trying fallback approach')
-    if (userProgress.length > 0) {
-      const mostRecentProgress = userProgress.sort((a, b) => 
-        new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-      )[0]
-      
-      console.log('   - most recent progress:', mostRecentProgress)
-      
-      if (mostRecentProgress) {
-        const topic = getTopicById(mostRecentProgress.topic_id)
-        console.log('   - fallback topic:', topic)
-        
-        const result = {
-          ...topic,
-          phase: mostRecentProgress.phase,
-          progress: mostRecentProgress
-        }
-        console.log('   - fallback result:', result)
-        return result
-      }
-    }
-    
-    console.log('   - no topic found at all, returning null')
-    return null
-  }
-
-  const getPhaseDisplayName = (phase) => {
-    switch (phase) {
-      case 'session':
-        return 'Learning Session'
-      case 'playtime':
-        return 'Interactive Practice'
-      case 'assignment':
-        return 'Coding Assignments'
-      default:
-        return 'Learning Session'
-    }
-  }
-
-  const getPhaseIcon = (phase) => {
-    switch (phase) {
-      case 'session':
-        return (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="phase-icon">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14,2 14,8 20,8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <polyline points="10,9 9,9 8,9" />
-          </svg>
-        )
-      case 'playtime':
-        return (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="phase-icon">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-          </svg>
-        )
-      case 'assignment':
-        return (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="phase-icon">
-            <polyline points="9,11 12,14 22,4" />
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-          </svg>
-        )
-      default:
-        return (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="phase-icon">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12,6 12,12 16,14" />
-          </svg>
-        )
-    }
-  }
-
   if (loading) {
     return (
       <div className="dashboard-loading">
@@ -551,6 +420,10 @@ const Dashboard = () => {
               <span className="label">Completed</span>
             </div>
             <div className="stat">
+              <span className="number">{currentProgressSummary.in_progress_topics || 0}</span>
+              <span className="label">In Progress</span>
+            </div>
+            <div className="stat">
               <span className="number">{currentProgressSummary.total_topics || 0}</span>
               <span className="label">Total Topics</span>
             </div>
@@ -569,37 +442,6 @@ const Dashboard = () => {
 
         {/* Continue Learning Section */}
         <div className="continue-section">
-          {/* Current Learning Status Card - Above Button */}
-          {(() => {
-            const currentTopic = getCurrentActiveTopic()
-            console.log('🎯 Rendering current topic card:', currentTopic)
-            
-            if (currentTopic) {
-              return (
-                <div className="current-learning-card">
-                  <div className="learning-header">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="learning-icon">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                    </svg>
-                    <span className="learning-label">Currently Learning</span>
-                  </div>
-                  <div className="topic-info">
-                    <h4 className="topic-title">{currentTopic.title}</h4>
-                    <div className="phase-info">
-                      {getPhaseIcon(currentTopic.phase)}
-                      <span className="phase-name">{getPhaseDisplayName(currentTopic.phase)}</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            } else {
-              console.log('🎯 No current topic found - card will not render')
-              return null
-            }
-          })()}
-
-          {/* Continue Learning Button */}
           <button
             className="continue-btn"
             onClick={handleContinueLearning}
@@ -607,8 +449,16 @@ const Dashboard = () => {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="5,3 19,12 5,21" />
             </svg>
+            {/* Show "Continue Learning" if user has any progress, otherwise "Start Learning" */}
             {userProgress.length > 0 ? 'Continue Learning' : 'Start Learning'}
           </button>
+
+          {lastAccessed && (
+            <div className="last-topic">
+              <span className="topic-name">{getTopicById(lastAccessed.topicId)?.title}</span>
+              <span className="topic-phase">Phase: {lastAccessed.phase}</span>
+            </div>
+          )}
         </div>
 
         {/* Completed Topics */}

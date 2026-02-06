@@ -641,8 +641,6 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: 400px;
-  /* Constrain height to prevent footer from being pushed out */
   overflow: hidden;
   position: relative;
   z-index: 5;

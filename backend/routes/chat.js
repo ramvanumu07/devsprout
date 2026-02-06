@@ -6,11 +6,11 @@
 import express from 'express'
 import { authenticateToken } from './auth.js'
 import { callAI } from '../services/ai.js'
-import { getChatHistory, saveChatTurn, saveInitialMessage, getLastMessages, parseHistoryToMessages, clearChatHistory, getChatHistoryString } from '../services/chatService.js'
+import { getChatHistory, saveChatTurn, saveInitialMessage, getLastMessages, parseHistoryToMessages } from '../services/chatService.js'
 import { courses } from '../../data/curriculum.js'
 import { formatLearningObjectives, findTopicById } from '../utils/curriculum.js'
 import { getCompletedTopics, upsertProgress } from '../services/database.js'
-import progressManager from '../services/progressManager.js'
+// import progressManager from '../services/progressManager.js' // Temporarily disabled for debugging
 import { handleErrorResponse, createSuccessResponse, createErrorResponse } from '../utils/responses.js'
 import { rateLimitMiddleware } from '../middleware/rateLimiting.js'
 
@@ -239,7 +239,7 @@ router.post('/session', authenticateToken, rateLimitMiddleware, async (req, res)
     console.log(`✅ Session chat: User ${userId}, Topic ${topicId}, Topic: "${topic.title}"`)
 
     // Get updated conversation history
-    const updatedConversation = await getChatHistoryString(userId, topicId)
+    const updatedConversation = await getChatHistory(userId, topicId)
     const messageCount = updatedConversation.split(/(?=AGENT:|USER:)/).filter(msg => msg.trim()).length
 
     // Debug: Log what we're sending to frontend

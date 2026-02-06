@@ -20,7 +20,6 @@ import progressRoutes from './routes/progress.js'
 
 // Import middleware
 import { performanceMonitor } from './middleware/performance.js'
-import { errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -79,9 +78,6 @@ app.use('/api/auth', authRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/learn', learningRoutes)
 app.use('/api/progress', progressRoutes)
-
-// ============ ERROR HANDLING ============
-app.use(errorHandler)
 
 // ============ HEALTH CHECK ============
 app.get('/health', (req, res) => {

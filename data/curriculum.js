@@ -8,11 +8,14 @@ export const courses = [
         id: 'console-log',
         title: 'console.log',
         outcomes: [
-          'console log basics',
-          'printing strings using single and double quotes',
-          'printing numbers',
-          'printing multiple values separated by +',
-          'math expressions'
+          'console.log() basic syntax',
+          'String literals (Single vs. Double quotes)',
+          'Printing numeric values and decimals',
+          'Basic arithmetic expressions in logs',
+          'String concatenation (+) and the space problem',
+          'Comma-separated logging and auto-spacing',
+          'Logic vs. String representation (The Quote Trap)',
+          'Introduction to Template Literals (${})'
         ],
         tasks: [
           {
@@ -11467,12 +11470,6 @@ export const courses = [
         ]
       }
     ]
-  },
-  {
-    id: 'python',
-    title: 'Python',
-    description: 'Master python from fundamentals to advanced concepts',
-    topics: []
   }
 ];
 

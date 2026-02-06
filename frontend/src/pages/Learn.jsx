@@ -122,7 +122,7 @@ const Learn = () => {
   })
   const [currentAssignment, setCurrentAssignment] = useState(null)
   const [userCode, setUserCode] = useState('') // Empty - placeholder will show
-  const [lastExecutionState, setLastExecutionState] = useState(null)
+  const [editorHeight, setEditorHeight] = useState(70) // Default 70% for code editor
   const [currentAssignmentIndex, setCurrentAssignmentIndex] = useState(0)
   const [assignmentSubmitted, setAssignmentSubmitted] = useState(false)
   const [assignmentFeedback, setAssignmentFeedback] = useState(null)
@@ -142,7 +142,7 @@ const Learn = () => {
           ...progressData
         })
       })
-
+      
       if (response.ok) {
         console.log('✅ Progress updated:', progressData)
       } else {
@@ -158,7 +158,7 @@ const Learn = () => {
 
   // Phase management helpers
   const getPhaseIcon = (phase) => {
-    switch (phase) {
+    switch(phase) {
       case 'session': return '📚 Learning'
       case 'playtime': return '🎮 Playtime'
       case 'assignment': return '📝 Assignment'
@@ -174,7 +174,7 @@ const Learn = () => {
   }
 
   const canAdvanceToPhase = (phase) => {
-    switch (phase) {
+    switch(phase) {
       case 'session': return true
       case 'playtime': return phaseProgress.session || sessionComplete
       case 'assignment': return phaseProgress.playtime
@@ -193,7 +193,7 @@ const Learn = () => {
     if (phaseParam && ['session', 'playtime', 'assignment'].includes(phaseParam)) {
       console.log(`🔄 URL phase parameter detected: ${phaseParam}`)
       setCurrentPhase(phaseParam)
-
+      
       // Load assignment state if needed
       if (phaseParam === 'assignment' && topic?.tasks) {
         // Get current assignment from progress or start with first
@@ -243,12 +243,12 @@ const Learn = () => {
           setSessionStarted(true)
 
           // Check if any message contains the completion signal
-          const hasCompletionSignal = existingMessages.some(msg =>
-            msg.role === 'assistant' &&
-            (msg.content.includes('SESSION_COMPLETE_SIGNAL') ||
-              (msg.content.includes('🏆') && msg.content.includes('Congratulations')))
+          const hasCompletionSignal = existingMessages.some(msg => 
+            msg.role === 'assistant' && 
+            (msg.content.includes('SESSION_COMPLETE_SIGNAL') || 
+             (msg.content.includes('🏆') && msg.content.includes('Congratulations')))
           )
-
+          
           if (hasCompletionSignal) {
             console.log('🎉 Detected completed session from history')
             setSessionComplete(true)
@@ -400,10 +400,10 @@ const Learn = () => {
             ...prev,
             [currentPhase]: true
           }))
-
+          
           if (currentPhase === 'session') {
             setSessionComplete(true)
-
+            
             // Update progress: session completed, ready for playtime
             updateProgress({
               phase: 'session',
@@ -441,7 +441,7 @@ const Learn = () => {
         // Add both user and AI messages
         const userMessage = { role: 'user', content: message, timestamp: new Date() }
         const aiMessage = { role: 'assistant', content: aiResponse, timestamp: new Date() }
-
+        
         setMessages([userMessage, aiMessage])
       } else {
         setChatError(response.data.message || 'Failed to start playtime')
@@ -456,10 +456,10 @@ const Learn = () => {
 
   const handlePhaseChange = async (newPhase) => {
     console.log(`🔄 Changing phase from ${currentPhase} to ${newPhase}`)
-
+    
     // Update URL to reflect new phase
     setSearchParams({ phase: newPhase })
-
+    
     setCurrentPhase(newPhase)
     setMessages([])
     setCurrentMessage('')
@@ -483,17 +483,22 @@ const Learn = () => {
         // Initialize playtime - clean code playground (no welcome message needed)
         setMessages([]) // Clear any previous messages
         setUserCode('') // Empty code area - placeholder will show
-        setLastExecutionState(null) // Clear execution state
-
-        // Clear output and AI analysis areas
+        
+        // Clear output area
         setTimeout(() => {
           const outputDiv = document.getElementById('terminal-output')
-          const aiDiv = document.getElementById('ai-analysis')
           if (outputDiv) {
-            outputDiv.innerHTML = '<pre style="margin: 0; color: #6b7280; font-family: Monaco, monospace;">Click "Run" to execute your code</pre>'
-          }
-          if (aiDiv) {
-            aiDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Write some code and run it to get AI analysis</div>'
+            // Clear line numbers on initialization
+            const lineNumbersDiv = outputDiv.parentElement.querySelector('.terminal-line-numbers')
+            if (lineNumbersDiv) {
+              lineNumbersDiv.innerHTML = ''
+            }
+            
+            outputDiv.innerHTML = `
+              <div style="color: #10a37f; font-family: Monaco, Consolas, 'SF Mono', 'Courier New', monospace; line-height: 1.4;">
+                Click "Run" to execute your code
+              </div>
+            `
           }
         }, 100)
         break
@@ -507,7 +512,6 @@ const Learn = () => {
           setAssignmentSubmitted(false)
           setAssignmentFeedback(null)
           setTestResults(null)
-          setLastExecutionState(null)
         }
         break
 
@@ -520,22 +524,22 @@ const Learn = () => {
   const initializeAssignmentPhase = async () => {
     try {
       setIsTyping(true)
-
+      
       // Get assignment for this topic
       const assignment = topic?.tasks?.[0] || {
         description: `Create a console.log program that demonstrates all the concepts you learned in ${topic?.title}`,
         testCases: []
       }
-
+      
       setCurrentAssignment(assignment)
-
+      
       // Add assignment introduction message
       const assignmentMessage = {
         role: 'assistant',
         content: `📝 **Assignment Time!**\n\n**Your Task:** ${assignment.description}\n\nWrite your code below and I'll help you if you get stuck. When you're ready, submit your solution for feedback!`,
         timestamp: new Date()
       }
-
+      
       setMessages([assignmentMessage])
     } catch (err) {
       console.error('Error initializing assignment:', err)
@@ -553,18 +557,18 @@ const Learn = () => {
 
     try {
       setIsTyping(true)
-
+      
       const response = await learning.getFeedback(topicId, userCode, currentAssignment)
-
+      
       if (response.data.success) {
         const feedbackMessage = {
           role: 'assistant',
           content: `📊 **Code Feedback**\n\n${response.data.data.feedback}`,
           timestamp: new Date()
         }
-
+        
         setMessages([feedbackMessage])
-
+        
         // Mark feedback phase as complete
         setPhaseProgress(prev => ({
           ...prev,
@@ -608,6 +612,75 @@ const Learn = () => {
         }}></div>
         <p>Loading topic...</p>
         <style>{`
+        /* Terminal dark theme line numbers */
+        .terminal-line-numbers {
+          background-color: #2d2d2d !important;
+          color: #6b7280 !important;
+          border-right: 1px solid #404040 !important;
+          overflow-y: hidden !important; /* Hide scrollbar but allow programmatic scroll */
+          scrollbar-width: none !important; /* Firefox */
+          -ms-overflow-style: none !important; /* IE/Edge */
+        }
+        
+        /* Hide scrollbar for webkit browsers */
+        .terminal-line-numbers::-webkit-scrollbar {
+          display: none !important;
+        }
+        
+        /* Ensure proper scroll behavior on mobile */
+        @media (max-width: 768px) {
+          .terminal-line-numbers {
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+          
+          .playground-output {
+            -webkit-overflow-scrolling: touch !important;
+            overflow-y: auto !important;
+          }
+        }
+        
+        /* Force equal header heights - highest specificity */
+        .playground-editor-panel .playground-editor-header,
+        .playground-output-panel .playground-output-header {
+          height: 56px !important;
+          min-height: 56px !important;
+          max-height: 56px !important;
+        }
+        
+        /* Universal responsive container system */
+        .playground-main-content,
+        .assignment-main-content {
+          height: 100% !important;
+          min-height: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+        }
+        
+        /* Universal panel system */
+        .playground-editor-panel,
+        .playground-output-panel {
+          display: flex !important;
+          flex-direction: column !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
+        }
+        
+        /* Universal scroll containers */
+        .playground-output,
+        .playground-textarea {
+          overflow: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          scrollbar-width: thin !important;
+        }
+        
+        /* Universal line numbers */
+        .playground-line-numbers,
+        .terminal-line-numbers {
+          overflow: hidden !important;
+          flex-shrink: 0 !important;
+        }
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -766,99 +839,99 @@ const Learn = () => {
             }}>
               {topic.title} {getPhaseIcon(currentPhase)}
             </h2>
-
-            {/* Single Action Button */}
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              {currentPhase === 'session' && (
-                <button
-                  onClick={() => {
-                    if (sessionComplete) {
-                      handlePhaseChange('playtime')
-
-                      // Update progress: user accessed playtime
-                      updateProgress({
-                        phase: 'playtime',
-                        status: 'in_progress',
-                        nextPhase: 'assignment',
-                        accessedAt: new Date().toISOString()
-                      })
-                    }
-                  }}
-                  disabled={!sessionComplete}
-                  style={{
-                    backgroundColor: sessionComplete ? '#10a37f' : '#e5e7eb',
-                    color: sessionComplete ? 'white' : '#9ca3af',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
+            
+              {/* Single Action Button */}
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                {currentPhase === 'session' && (
+                  <button
+                    onClick={() => {
+                      if (sessionComplete) {
+                        handlePhaseChange('playtime')
+                        
+                        // Update progress: user accessed playtime
+                        updateProgress({
+                          phase: 'playtime',
+                          status: 'in_progress',
+                          nextPhase: 'assignment',
+                          accessedAt: new Date().toISOString()
+                        })
+                      }
+                    }}
+                    disabled={!sessionComplete}
+                    style={{
+                      backgroundColor: sessionComplete ? '#10a37f' : '#e5e7eb',
+                      color: sessionComplete ? 'white' : '#9ca3af',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '8px 16px',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      cursor: sessionComplete ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease',
+                      opacity: sessionComplete ? 1 : 0.5
+                    }}
+                    title={sessionComplete ? 'Start practicing in playground' : 'Complete all session outcomes first'}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="5,3 19,12 5,21"/>
+                    </svg>
+                    Play
+                  </button>
+                )}
+                
+                {currentPhase === 'playtime' && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        // Mark playtime as completed using centralized progress manager
+                        await learning.completePlaytime(topicId)
+                        console.log('✅ Playtime marked as completed via progress manager')
+                        
+                        // Transition to assignment phase
+                        handlePhaseChange('assignment')
+                      } catch (error) {
+                        console.error('❌ Error completing playtime:', error)
+                        // Still allow transition even if API call fails
+                        handlePhaseChange('assignment')
+                      }
+                    }}
+                    style={{
+                      backgroundColor: '#10a37f',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '8px 16px',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Start coding assignments"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="16,18 22,12 16,6"/>
+                      <polyline points="8,6 2,12 8,18"/>
+                    </svg>
+                    Code
+                  </button>
+                )}
+                
+                {currentPhase === 'assignment' && (
+                  <div style={{
                     fontSize: '0.875rem',
-                    fontWeight: '600',
-                    cursor: sessionComplete ? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease',
-                    opacity: sessionComplete ? 1 : 0.5
-                  }}
-                  title={sessionComplete ? 'Start practicing in playground' : 'Complete all session outcomes first'}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polygon points="5,3 19,12 5,21" />
-                  </svg>
-                  Play
-                </button>
-              )}
-
-              {currentPhase === 'playtime' && (
-                <button
-                  onClick={async () => {
-                    try {
-                      // Mark playtime as completed using centralized progress manager
-                      await learning.completePlaytime(topicId)
-                      console.log('✅ Playtime marked as completed via progress manager')
-
-                      // Transition to assignment phase
-                      handlePhaseChange('assignment')
-                    } catch (error) {
-                      console.error('❌ Error completing playtime:', error)
-                      // Still allow transition even if API call fails
-                      handlePhaseChange('assignment')
-                    }
-                  }}
-                  style={{
-                    backgroundColor: '#10a37f',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    fontSize: '0.875rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease'
-                  }}
-                  title="Start coding assignments"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="16,18 22,12 16,6" />
-                    <polyline points="8,6 2,12 8,18" />
-                  </svg>
-                  Code
-                </button>
-              )}
-
-              {currentPhase === 'assignment' && (
-                <div style={{
-                  fontSize: '0.875rem',
-                  color: '#6b7280',
-                  fontWeight: '500'
-                }}>
-                  Assignment {currentAssignmentIndex + 1} of {topic?.tasks?.length || 0}
-                </div>
-              )}
-            </div>
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Assignment {currentAssignmentIndex + 1} of {topic?.tasks?.length || 0}
+                  </div>
+                )}
+              </div>
           </div>
         </header>
       )}
@@ -875,7 +948,7 @@ const Learn = () => {
         margin: sessionStarted ? '0' : '0 auto',
         overflow: 'hidden'
       }}>
-
+        
         {/* Professional Code Playground */}
         {currentPhase === 'playtime' ? (
           <div style={{
@@ -892,28 +965,30 @@ const Learn = () => {
             <div className="playground-main-content" style={{
               flex: 1,
               display: 'flex',
-              height: 'calc(100vh - 200px)',
-              minHeight: '500px',
-              overflow: 'auto' // Allow scrolling of the entire playground
+              flexDirection: 'column',
+              height: '100%',
+              minHeight: 0,
+              overflow: 'hidden'
             }}>
-              {/* Left Panel - Code Editor */}
-              <div className="playground-left-panel" style={{
-                flex: 1,
+              {/* Top Panel - Code Editor */}
+              <div className="playground-editor-panel" style={{
+                height: `${editorHeight}%`,
                 display: 'flex',
                 flexDirection: 'column',
-                borderRight: '1px solid #404040',
-                minWidth: '0', // Important for flex overflow
-                minHeight: 0 // Important to prevent expansion
+                minHeight: '200px', // Minimum height for editor
+                overflow: 'hidden'
               }}>
                 {/* Editor Header */}
                 <div className="playground-editor-header" style={{
                   display: 'flex',
                   alignItems: 'center',
-                  padding: '8px 16px',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
                   backgroundColor: '#f9fafb',
                   borderBottom: '1px solid #e5e7eb',
                   fontSize: '0.8rem',
-                  color: '#6b7280'
+                  color: '#6b7280',
+                  minHeight: '56px'
                 }}>
                   <div style={{
                     padding: '4px 12px',
@@ -925,13 +1000,166 @@ const Learn = () => {
                   }}>
                     playground.js
                   </div>
+                  
+                  {/* Action Buttons - Moved from Footer */}
+                  <div className="playground-header-actions" style={{ 
+                    display: 'flex', 
+                    gap: '8px',
+                    alignItems: 'center',
+                    height: 'auto' 
+                  }}>
+                    <button
+                      onClick={() => {
+                        // Execute code and update output
+                        const outputDiv = document.getElementById('terminal-output')
+                        if (!outputDiv) return
+
+                        try {
+                          // Clear previous output
+                          outputDiv.innerHTML = ''
+                          
+                          // Create execution environment
+                          const outputs = []
+                          const originalConsoleLog = console.log
+                          console.log = (...args) => {
+                            outputs.push(args.map(arg => String(arg)).join(' '))
+                          }
+                          
+                          try {
+                            // Execute code
+                            eval(userCode)
+                            console.log = originalConsoleLog
+                            
+                            // Display clean output and update line numbers
+                            const outputText = outputs.length > 0 ? outputs.join('\n') : 'No output'
+                            const outputLines = outputText.split('\n')
+                            
+                            // Update line numbers
+                            const lineNumbersDiv = outputDiv.parentElement.querySelector('.terminal-line-numbers')
+                            if (lineNumbersDiv) {
+                              let lineNumbersHTML = ''
+                              outputLines.forEach((_, index) => {
+                                lineNumbersHTML += `<div style="line-height: 1.4; margin-bottom: 2px; color: #6b7280; text-align: right; padding-right: 2px;">${index + 1}</div>`
+                              })
+                              lineNumbersDiv.innerHTML = lineNumbersHTML
+                            }
+                            
+                            // Update output content
+                            let formattedOutput = ''
+                            outputLines.forEach((line) => {
+                              formattedOutput += `<div style="line-height: 1.4; margin-bottom: 2px; white-space: pre; padding-left: 2px;">${line || ' '}</div>`
+                            })
+                            
+                            outputDiv.innerHTML = `
+                              <div style="font-family: Monaco, Consolas, 'SF Mono', 'Courier New', monospace; line-height: 1.4; color: #10a37f;">
+                                ${formattedOutput}
+                              </div>
+                            `
+                            
+                            
+                          } catch (executionError) {
+                            console.log = originalConsoleLog
+                            
+                            // Display clean error output
+                            let errorMessage = `${executionError.name}: ${executionError.message}`
+                            
+                            // Update line numbers for error
+                            const lineNumbersDiv = outputDiv.parentElement.querySelector('.terminal-line-numbers')
+                            if (lineNumbersDiv) {
+                              lineNumbersDiv.innerHTML = '<div style="line-height: 1.4; margin-bottom: 2px; color: #6b7280; text-align: right; padding-right: 2px;">1</div>'
+                            }
+                            
+                            outputDiv.innerHTML = `
+                              <div style="font-family: Monaco, Consolas, 'SF Mono', 'Courier New', monospace; line-height: 1.4;">
+                                <div style="line-height: 1.4; margin-bottom: 2px; white-space: pre; color: #dc2626; padding-left: 2px;">${errorMessage}</div>
+                              </div>
+                            `
+                            
+                          }
+                          
+                        } catch (generalError) {
+                          // Update line numbers for general error
+                          const lineNumbersDiv = outputDiv.parentElement.querySelector('.terminal-line-numbers')
+                          if (lineNumbersDiv) {
+                            lineNumbersDiv.innerHTML = '<div style="line-height: 1.4; margin-bottom: 2px; color: #6b7280; text-align: right; padding-right: 2px;">1</div>'
+                          }
+                          
+                          outputDiv.innerHTML = `
+                            <div style="font-family: Monaco, Consolas, 'SF Mono', 'Courier New', monospace; line-height: 1.4;">
+                              <div style="line-height: 1.4; margin-bottom: 2px; white-space: pre; color: #dc2626; padding-left: 2px;">Unexpected error: ${generalError.message}</div>
+                            </div>
+                          `
+                        }
+                      }}
+                      disabled={!userCode.trim()}
+                      style={{
+                        backgroundColor: !userCode.trim() ? '#e5e7eb' : '#10a37f',
+                        color: !userCode.trim() ? '#9ca3af' : 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        cursor: !userCode.trim() ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: !userCode.trim() ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.1)',
+                        minWidth: '60px',
+                        height: '28px',
+                        alignSelf: 'flex-start'
+                      }}
+                    >
+                      Run
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUserCode('') // Empty code area - placeholder will show
+                        const outputDiv = document.getElementById('terminal-output')
+                        if (outputDiv) {
+                          // Clear line numbers
+                          const lineNumbersDiv = outputDiv.parentElement.querySelector('.terminal-line-numbers')
+                          if (lineNumbersDiv) {
+                            lineNumbersDiv.innerHTML = ''
+                          }
+                          
+                          outputDiv.innerHTML = `
+                            <div style="color: #10a37f; font-family: Monaco, Consolas, 'SF Mono', 'Courier New', monospace; line-height: 1.4;">
+                              Click "Run" to execute your code
+                            </div>
+                          `
+                        }
+                      }}
+                      style={{
+                        backgroundColor: '#6b7280',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                        minWidth: '60px',
+                        height: '28px',
+                        alignSelf: 'flex-start'
+                      }}
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
 
                 {/* Code Editor with Line Numbers */}
                 <div style={{
-                  flex: 1, // Take available space
-                  minHeight: '250px', // Minimum height for visibility
-                  maxHeight: 'calc(100vh - 400px)', // Max height to leave room for footer
+                  flex: 1, // Take all available space
+                  minHeight: '300px', // Minimum height for visibility
                   display: 'flex',
                   backgroundColor: '#ffffff',
                   border: '1px solid #e5e7eb',
@@ -946,7 +1174,7 @@ const Learn = () => {
                     backgroundColor: '#f9fafb',
                     borderRight: '1px solid #e5e7eb',
                     padding: '16px 8px',
-                    fontSize: '0.8rem',
+                    fontSize: '0.875rem',
                     color: '#9ca3af',
                     fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
                     lineHeight: '1.4',
@@ -956,7 +1184,10 @@ const Learn = () => {
                     maxHeight: '100%'
                   }}>
                     {userCode.split('\n').map((_, index) => (
-                      <div key={index} style={{ height: '19.6px' }}>
+                      <div key={index} style={{ 
+                        lineHeight: '1.4',
+                        fontSize: '0.875rem'
+                      }}>
                         {index + 1}
                       </div>
                     ))}
@@ -997,311 +1228,164 @@ const Learn = () => {
                     spellCheck={false}
                   />
                 </div>
+              </div>
 
-                {/* Editor Footer with Actions */}
-                <div className="playground-footer" style={{
+              {/* Resizable Splitter */}
+              <div 
+                className="playground-splitter"
+                style={{
+                  height: '4px',
+                  backgroundColor: 'transparent',
+                  cursor: 'row-resize',
+                  position: 'relative',
+                  zIndex: 10,
+                  touchAction: 'none' // Prevent scrolling during touch
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const startY = e.clientY
+                  const startHeight = editorHeight
+                  const containerHeight = e.currentTarget.parentElement.clientHeight
+                  
+                  const handleMouseMove = (e) => {
+                    const deltaY = e.clientY - startY
+                    const deltaPercent = (deltaY / containerHeight) * 100
+                    const newHeight = Math.min(Math.max(startHeight + deltaPercent, 20), 80) // Min 20%, Max 80%
+                    setEditorHeight(newHeight)
+                  }
+                  
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove)
+                    document.removeEventListener('mouseup', handleMouseUp)
+                  }
+                  
+                  document.addEventListener('mousemove', handleMouseMove)
+                  document.addEventListener('mouseup', handleMouseUp)
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault()
+                  const touch = e.touches[0]
+                  const startY = touch.clientY
+                  const startHeight = editorHeight
+                  const containerHeight = e.currentTarget.parentElement.clientHeight
+                  
+                  const handleTouchMove = (e) => {
+                    const touch = e.touches[0]
+                    const deltaY = touch.clientY - startY
+                    const deltaPercent = (deltaY / containerHeight) * 100
+                    const newHeight = Math.min(Math.max(startHeight + deltaPercent, 20), 80) // Min 20%, Max 80%
+                    setEditorHeight(newHeight)
+                  }
+                  
+                  const handleTouchEnd = () => {
+                    document.removeEventListener('touchmove', handleTouchMove)
+                    document.removeEventListener('touchend', handleTouchEnd)
+                  }
+                  
+                  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+                  document.addEventListener('touchend', handleTouchEnd)
+                }}
+              >
+              </div>
+
+              {/* Bottom Panel - Terminal Output */}
+              <div className="playground-output-panel" style={{
+                height: `${100 - editorHeight}%`,
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: '#ffffff',
+                minHeight: '100px', // Minimum height for output
+                overflow: 'hidden'
+              }}>
+                {/* Header */}
+                <div className="playground-output-header" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '8px 16px',
+                  padding: '12px 16px',
                   backgroundColor: '#f9fafb',
-                  borderTop: '1px solid #e5e7eb',
-                  fontSize: '0.75rem',
-                  color: '#6b7280'
+                  borderBottom: '1px solid #e5e7eb',
+                  fontSize: '0.8rem',
+                  color: '#6b7280',
+                  minHeight: '56px'
                 }}>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <span>JavaScript</span>
-                    <span>UTF-8</span>
-                    <span>LF</span>
-                  </div>
-                  <div className="playground-footer-actions" style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={async () => {
-                        const outputDiv = document.getElementById('terminal-output')
-                        const aiDiv = document.getElementById('ai-analysis')
-                        if (!outputDiv) return
-
-                        try {
-                          // Show loading state
-                          outputDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Executing code...</div>'
-
-                          // Execute code securely on server
-                          const response = await learning.executeCode(userCode, topicId)
-
-                          if (response.data.success) {
-                            const execution = response.data.data.execution
-
-                            if (execution.success) {
-                              const outputText = execution.output || 'No output'
-                              outputDiv.innerHTML = `<pre style="margin: 0; color: #10a37f; font-family: Monaco, monospace; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">${outputText}</pre>`
-
-                              // Enable AI analysis button and clear previous analysis
-                              if (aiDiv) {
-                                aiDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Click "Explain Code" to get AI analysis of your code and output</div>'
-                              }
-
-                              // Store execution state for AI analysis
-                              setLastExecutionState({
-                                code: userCode,
-                                output: outputText,
-                                hasError: false
-                              })
-                            } else {
-                              const errorMessage = execution.error || 'Unknown error'
-                              outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">${errorMessage}</pre>`
-
-                              // Enable AI analysis for errors too
-                              if (aiDiv) {
-                                aiDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Click "Explain Code" to get help with this error</div>'
-                              }
-
-                              // Store execution state for AI analysis
-                              setLastExecutionState({
-                                code: userCode,
-                                output: errorMessage,
-                                hasError: true
-                              })
-                            }
-                          } else {
-                            const errorMessage = response.data.message || 'Server error'
-                            outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">Server Error: ${errorMessage}</pre>`
-
-                            setLastExecutionState({
-                              code: userCode,
-                              output: errorMessage,
-                              hasError: true
-                            })
-                          }
-                        } catch (error) {
-                          console.error('Code execution error:', error)
-                          const errorMessage = `Network Error: ${error.message}`
-                          outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">${errorMessage}</pre>`
-
-                          setLastExecutionState({
-                            code: userCode,
-                            output: errorMessage,
-                            hasError: true
-                          })
-                        }
-                      }}
-                      disabled={!userCode.trim()}
-                      style={{
-                        backgroundColor: !userCode.trim() ? '#e5e7eb' : '#10a37f',
-                        color: !userCode.trim() ? '#9ca3af' : 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        cursor: !userCode.trim() ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      Run
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUserCode('') // Empty code area - placeholder will show
-                        const outputDiv = document.getElementById('terminal-output')
-                        const aiDiv = document.getElementById('ai-analysis')
-                        if (outputDiv) {
-                          outputDiv.innerHTML = '<pre style="margin: 0; color: #6b7280; font-family: Monaco, monospace;">Click "Run" to execute your code</pre>'
-                        }
-                        if (aiDiv) {
-                          aiDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Write some code and run it to get AI analysis</div>'
-                        }
-                        // Clear execution state
-                        setLastExecutionState(null)
-                      }}
-                      style={{
-                        backgroundColor: '#6b7280',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Panel - Output & AI */}
-              <div className="playground-right-panel" style={{
-                width: '45%',
-                display: 'flex',
-                flexDirection: 'column',
-                backgroundColor: '#ffffff'
-              }}>
-                {/* Terminal Output */}
-                <div style={{
-                  height: '50%', // Fixed height instead of flex: 1
-                  display: 'flex',
-                  flexDirection: 'column',
-                  borderBottom: '1px solid #e5e7eb'
-                }}>
-                  <div className="playground-output-header" style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#f9fafb',
-                    borderBottom: '1px solid #e5e7eb',
-                    fontSize: '0.8rem',
-                    color: '#374151',
-                    fontWeight: '500'
+                  <div style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '4px 4px 0 0',
+                    fontSize: '0.75rem',
+                    fontWeight: '500',
+                    color: '#111827',
+                    border: '1px solid #e5e7eb',
+                    borderTop: '1px solid #e5e7eb',
+                    borderLeft: '1px solid #e5e7eb',
+                    borderRight: '1px solid #e5e7eb',
+                    borderBottom: '2px solid #10a37f',
+                    position: 'relative',
+                    zIndex: 1,
+                    marginBottom: '-1px' // Overlap with content border
                   }}>
                     Terminal Output
                   </div>
-                  <div style={{
-                    flex: 1,
-                    backgroundColor: '#1e1e1e',
-                    border: '1px solid #333',
-                    borderRadius: '0 0 6px 6px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0 // Important for flex child to shrink
-                  }}>
-                    <div
-                      id="terminal-output"
-                      className="playground-output"
-                      style={{
-                        flex: 1,
-                        padding: '16px',
-                        backgroundColor: 'transparent',
-                        color: '#10a37f',
-                        fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
-                        fontSize: '0.875rem',
-                        overflow: 'auto',
-                        minHeight: 0, // Important for scrolling
-                        maxWidth: '100%', // Prevent width expansion
-                        wordBreak: 'break-word' // Handle long lines
-                      }}
-                    >
-                      <pre style={{ margin: 0, color: '#6b7280' }}>Click "Run" to execute your code</pre>
-                    </div>
-                  </div>
                 </div>
 
-                {/* AI Analysis Panel */}
+                {/* Terminal Output Content */}
                 <div style={{
-                  height: '50%', // Fixed height instead of flex: 1
+                  flex: 1,
+                  backgroundColor: '#1e1e1e',
+                  border: '1px solid #333',
+                  borderTop: 'none', // Let tab border connect
                   display: 'flex',
-                  flexDirection: 'column'
+                  minHeight: 0 // Important for flex child to shrink
                 }}>
-                  <div className="playground-ai-header" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 16px',
-                    backgroundColor: '#f9fafb',
-                    borderBottom: '1px solid #e5e7eb',
-                    fontSize: '0.8rem',
-                    color: '#374151'
+                  {/* Terminal Line Numbers */}
+                  <div className="terminal-line-numbers" style={{
+                    width: '50px',
+                    backgroundColor: '#2d2d2d !important',
+                    borderRight: '1px solid #404040 !important',
+                    padding: '16px 8px',
+                    fontSize: '0.875rem',
+                    color: '#6b7280 !important',
+                    fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
+                    lineHeight: '1.4',
+                    textAlign: 'right',
+                    userSelect: 'none',
+                    overflow: 'hidden', // Hide scrollbar but allow programmatic scrolling
+                    flexShrink: 0,
+                    position: 'relative' // For proper scroll positioning
                   }}>
-                    <span style={{ fontWeight: '500' }}>AI Code Analysis</span>
-                    <button
-                      onClick={async () => {
-                        const aiDiv = document.getElementById('ai-analysis')
-                        if (!aiDiv || !lastExecutionState) return
-
-                        const { code, output, hasError } = lastExecutionState
-
-                        // Show loading
-                        aiDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Analyzing your code...</div>'
-
-                        try {
-                          // Simulate AI analysis (replace with actual API call)
-                          await new Promise(resolve => setTimeout(resolve, 1500))
-
-                          // Generate analysis based on code and output
-                          let analysis = `**Code Analysis:**\n\n`
-
-                          if (hasError) {
-                            analysis += `**Error Analysis:**\n`
-                            analysis += `Your code encountered an error: ${output}\n\n`
-                            analysis += `**Common fixes:**\n`
-                            analysis += `- Check for typos in function names\n`
-                            analysis += `- Ensure parentheses are balanced\n`
-                            analysis += `- Make sure variables are defined\n`
-                            analysis += `- End statements with semicolons\n\n`
-                          } else {
-                            if (code.includes('console.log')) {
-                              analysis += `Great! You're using console.log() to display output.\n\n`
-
-                              const logMatches = code.match(/console\.log\([^)]+\)/g)
-                              if (logMatches) {
-                                analysis += `**What your code does:**\n`
-                                logMatches.forEach((match, index) => {
-                                  analysis += `${index + 1}. ${match} - Prints the value to the terminal\n`
-                                })
-                                analysis += `\n`
-                              }
-                            }
-
-                            if (output !== 'No output') {
-                              analysis += `**Output Explanation:**\n`
-                              analysis += `Your code successfully executed and produced:\n${output}\n\n`
-                            }
-                          }
-
-                          analysis += `**Try Next:**\n`
-                          analysis += `- Experiment with different data types\n`
-                          analysis += `- Try mathematical expressions\n`
-                          analysis += `- Combine strings with variables`
-
-                          aiDiv.innerHTML = `<div style="color: #111827; line-height: 1.5; white-space: pre-wrap;">${analysis}</div>`
-
-                        } catch (error) {
-                          aiDiv.innerHTML = '<div style="color: #dc2626;">Failed to analyze code. Please try again.</div>'
-                        }
-                      }}
-                      disabled={!lastExecutionState}
-                      style={{
-                        backgroundColor: lastExecutionState ? '#10a37f' : '#e5e7eb',
-                        color: lastExecutionState ? 'white' : '#9ca3af',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '4px 8px',
-                        fontSize: '0.7rem',
-                        fontWeight: '500',
-                        cursor: lastExecutionState ? 'pointer' : 'not-allowed'
-                      }}
-                    >
-                      Explain Code
-                    </button>
+                    {/* Line numbers will be populated by JavaScript */}
                   </div>
-                  <div style={{
-                    flex: 1,
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '0 0 6px 6px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0 // Important for flex child to shrink
-                  }}>
-                    <div
-                      id="ai-analysis"
-                      className="playground-ai-content"
-                      style={{
-                        flex: 1,
-                        padding: '16px',
-                        backgroundColor: 'transparent',
-                        color: '#111827',
-                        fontSize: '0.8rem',
-                        overflow: 'auto',
-                        lineHeight: '1.5',
-                        minHeight: 0, // Important for scrolling
-                        maxWidth: '100%', // Prevent width expansion
-                        wordBreak: 'break-word' // Handle long content
-                      }}
-                    >
-                      <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                        Write some code and run it to get AI analysis
-                      </div>
+                  
+                  {/* Terminal Content Area */}
+                  <div
+                    id="terminal-output"
+                    className="playground-output"
+                    onScroll={(e) => {
+                      // Sync line numbers with terminal content scroll
+                      const lineNumbers = e.target.parentElement.querySelector('.terminal-line-numbers')
+                      if (lineNumbers) {
+                        lineNumbers.scrollTop = e.target.scrollTop
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '16px',
+                      backgroundColor: '#1e1e1e',
+                      color: '#10a37f',
+                      fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
+                      overflow: 'auto',
+                      minHeight: 0,
+                      height: '100%'
+                    }}
+                  >
+                    <div style={{ 
+                      color: '#10a37f', 
+                      fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
+                      fontSize: '0.875rem',
+                      lineHeight: '1.4'
+                    }}>
+                      Click "Run" to execute your code
                     </div>
                   </div>
                 </div>
@@ -1310,17 +1394,18 @@ const Learn = () => {
           </div>
         ) : currentPhase === 'assignment' ? (
           // Professional Assignment Interface
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            backgroundColor: '#ffffff',
-            color: '#111827',
-            overflow: 'hidden'
-          }}>
-            {/* Main Assignment Area */}
-            <div className="assignment-main-content" style={{
+          <>
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              backgroundColor: '#ffffff',
+              color: '#111827',
+              overflow: 'hidden'
+            }}>
+              {/* Main Assignment Area */}
+              <div className="assignment-main-content" style={{
               flex: 1,
               display: 'grid',
               gridTemplateColumns: '1fr 45%',
@@ -1353,8 +1438,8 @@ const Learn = () => {
                   <div style={{ color: '#111827' }}>
                     Assignment {currentAssignmentIndex + 1} of {topic?.tasks?.length || 0}
                   </div>
-                  <div style={{
-                    fontSize: '0.875rem',
+                  <div style={{ 
+                    fontSize: '0.875rem', 
                     color: '#6b7280',
                     display: 'flex',
                     alignItems: 'center',
@@ -1393,7 +1478,7 @@ const Learn = () => {
                   }}>
                     {currentAssignment?.description}
                   </p>
-
+                  
                   {/* Test Cases */}
                   {currentAssignment?.testCases && currentAssignment.testCases.length > 0 && (
                     <div>
@@ -1457,7 +1542,6 @@ const Learn = () => {
                   <div style={{
                     flex: 1, // Take available space
                     minHeight: '200px', // Minimum height for visibility
-                    maxHeight: '400px', // Maximum height to prevent footer from being pushed out
                     display: 'flex',
                     backgroundColor: '#ffffff',
                     border: '1px solid #e5e7eb',
@@ -1522,7 +1606,6 @@ const Learn = () => {
                         overflowY: 'auto',
                         tabSize: 2,
                         height: '100%', // Fill container height
-                        maxHeight: '100%', // Ensure it doesn't exceed container
                         minHeight: 0, // Important for scrolling
                         display: 'block !important',
                         visibility: 'visible !important',
@@ -1533,712 +1616,678 @@ const Learn = () => {
                   </div>
                 </div>
 
-                {/* Editor Footer - Status Only */}
-                <div className="assignment-footer" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 16px',
-                  backgroundColor: '#f9fafb',
-                  borderTop: '1px solid #e5e7eb',
-                  fontSize: '0.75rem',
-                  color: '#6b7280',
-                  flexShrink: 0 // Prevent footer from shrinking
-                }}>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <span>JavaScript</span>
-                    <span>UTF-8</span>
-                    <span>LF</span>
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
-                    Line {userCode.split('\n').length} • {userCode.length} chars
+                  {/* Editor Footer - Status Only */}
+                  <div className="assignment-footer" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 16px',
+                    backgroundColor: '#f9fafb',
+                    borderTop: '1px solid #e5e7eb',
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
+                    flexShrink: 0 // Prevent footer from shrinking
+                  }}>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <span>JavaScript</span>
+                      <span>UTF-8</span>
+                      <span>LF</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                      Line {userCode.split('\n').length} • {userCode.length} chars
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right Panel - Output & Review */}
-            <div className="assignment-right-panel" style={{
-              display: 'flex',
-              flexDirection: 'column',
-              backgroundColor: '#ffffff'
-            }}>
-              {/* Output Panel */}
-              <div style={{
-                height: '50%',
+              {/* Right Panel - Output & Review */}
+              <div className="assignment-right-panel" style={{
                 display: 'flex',
                 flexDirection: 'column',
-                borderBottom: '1px solid #e5e7eb'
+                backgroundColor: '#ffffff'
               }}>
-                <div className="assignment-output-header" style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#f9fafb',
-                  borderBottom: '1px solid #e5e7eb',
-                  fontSize: '0.8rem',
-                  color: '#374151',
-                  fontWeight: '500'
-                }}>
-                  Test Output
-                </div>
+                {/* Output Panel */}
                 <div style={{
-                  flex: 1,
-                  backgroundColor: '#1e1e1e',
-                  border: '1px solid #333',
-                  borderRadius: '0 0 6px 6px',
+                  height: '50%',
                   display: 'flex',
                   flexDirection: 'column',
-                  minHeight: 0 // Important for flex child to shrink
+                  borderBottom: '1px solid #e5e7eb'
                 }}>
-                  <div
-                    id="assignment-output"
-                    className="assignment-output"
-                    style={{
-                      flex: 1,
-                      padding: '16px',
-                      backgroundColor: 'transparent',
-                      color: '#10a37f',
-                      fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
-                      fontSize: '0.875rem',
-                      overflow: 'auto',
-                      minHeight: 0, // Important for scrolling
-                      maxWidth: '100%',
-                      wordBreak: 'break-word'
-                    }}
-                  >
-                    <pre style={{ margin: 0, color: '#6b7280' }}>Click "Run" to test your code</pre>
+                  <div className="assignment-output-header" style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#f9fafb',
+                    borderBottom: '1px solid #e5e7eb',
+                    fontSize: '0.8rem',
+                    color: '#374151',
+                    fontWeight: '500'
+                  }}>
+                    Test Output
+                  </div>
+                  <div style={{
+                    flex: 1,
+                    backgroundColor: '#1e1e1e',
+                    border: '1px solid #333',
+                    borderRadius: '0 0 6px 6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0 // Important for flex child to shrink
+                  }}>
+                    <div
+                      id="assignment-output"
+                      className="assignment-output"
+                      style={{
+                        flex: 1,
+                        padding: '16px',
+                        backgroundColor: 'transparent',
+                        color: '#10a37f',
+                        fontFamily: 'Monaco, Consolas, "SF Mono", "Courier New", monospace',
+                        fontSize: '0.875rem',
+                        overflow: 'auto',
+                        minHeight: 0, // Important for scrolling
+                        maxWidth: '100%',
+                        wordBreak: 'break-word'
+                      }}
+                    >
+                      <pre style={{ margin: 0, color: '#6b7280' }}>Click "Run" to test your code</pre>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Review Panel */}
-              <div style={{
-                height: '50%',
-                display: 'flex',
-                flexDirection: 'column'
-              }}>
-                <div className="assignment-review-header" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 16px',
-                  backgroundColor: '#f9fafb',
-                  borderBottom: '1px solid #e5e7eb',
-                  fontSize: '0.8rem',
-                  color: '#374151'
-                }}>
-                  <span style={{ fontWeight: '500' }}>Code Review & Feedback</span>
-                  <button
-                    onClick={async () => {
-                      const nextIndex = currentAssignmentIndex + 1
-
-                      try {
-                        // Require passing tests before completing assignment
-                        const completionResponse = await learning.completeAssignment(topicId, currentAssignmentIndex, userCode)
-                        console.log('✅ Assignment completed via progress manager:', completionResponse.data)
-                      } catch (error) {
-                        console.error('❌ Error marking assignment complete:', error)
-
-                        // Show error message to user
-                        const errorMessage = error.response?.data?.error || error.message || 'Failed to complete assignment'
-
-                        if (errorMessage.includes('tests are failing')) {
-                          alert('❌ Cannot advance to next assignment!\n\nYour code must pass all tests before you can continue. Please:\n\n1. Click "Submit" to run the tests\n2. Fix any failing tests\n3. Try "Next" again when all tests pass')
-                        } else {
-                          alert(`❌ Error completing assignment: ${errorMessage}`)
-                        }
-
-                        return // Don't advance if assignment completion failed
-                      }
-
-                      if (nextIndex < (topic?.tasks?.length || 0)) {
-                        // Move to next assignment - no submission requirement
-                        setCurrentAssignmentIndex(nextIndex)
-                        setCurrentAssignment(topic.tasks[nextIndex])
-                        setUserCode('')
-                        setAssignmentSubmitted(false)
-                        setAssignmentFeedback(null)
-                        setTestResults(null)
-                        setLastExecutionState(null)
-
-                        // Clear output and review
-                        const outputDiv = document.getElementById('assignment-output')
-                        const reviewDiv = document.getElementById('assignment-review')
-                        if (outputDiv) {
-                          outputDiv.innerHTML = '<pre style="margin: 0; color: #6b7280; font-family: Monaco, monospace;">Click "Run" to test your code</pre>'
-                        }
-                        if (reviewDiv) {
-                          reviewDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Submit your code to get feedback</div>'
-                        }
-                      } else {
-                        // All assignments completed - topic is now completed
-                        setPhaseProgress(prev => ({
-                          ...prev,
-                          assignment: true,
-                          feedback: true // Since we combined them
-                        }))
-
-                        console.log(`🎉 Topic ${topicId} completed! All assignments finished.`)
-
-                        // Show completion message
-                        alert(`🎉 Congratulations! You've mastered ${topic.title}!\n\nAll assignments completed successfully. You can now return to the dashboard to continue with the next topic.`)
-                      }
-                    }}
-                    style={{
-                      backgroundColor: '#10a37f',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '6px 12px',
-                      fontSize: '0.8rem',
-                      fontWeight: '500',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Next
-                  </button>
-                </div>
+                {/* Review Panel */}
                 <div style={{
-                  flex: 1,
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '0 0 6px 6px',
+                  height: '50%',
                   display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0 // Important for flex child to shrink
+                  flexDirection: 'column'
                 }}>
-                  <div
-                    id="assignment-review"
-                    className="assignment-review"
-                    style={{
-                      flex: 1,
-                      padding: '16px',
-                      backgroundColor: 'transparent',
-                      color: '#111827',
-                      fontSize: '0.8rem',
-                      overflow: 'auto',
-                      lineHeight: '1.5',
-                      minHeight: 0, // Important for scrolling
-                      maxWidth: '100%',
-                      wordBreak: 'break-word'
-                    }}
-                  >
-                    <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                      Submit your code to get feedback
+                  <div className="assignment-review-header" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 16px',
+                    backgroundColor: '#f9fafb',
+                    borderBottom: '1px solid #e5e7eb',
+                    fontSize: '0.8rem',
+                    color: '#374151'
+                  }}>
+                    <span style={{ fontWeight: '500' }}>Code Review & Feedback</span>
+                    <button
+                      onClick={async () => {
+                        const nextIndex = currentAssignmentIndex + 1
+                        
+                        try {
+                          // Always mark current assignment as completed - no tracking dependency
+                          const completionResponse = await learning.completeAssignment(topicId, currentAssignmentIndex)
+                          console.log('✅ Assignment completed via progress manager:', completionResponse.data)
+                        } catch (error) {
+                          console.error('❌ Error marking assignment complete (continuing anyway):', error)
+                          // Continue regardless of API failure
+                        }
+                        
+                        if (nextIndex < (topic?.tasks?.length || 0)) {
+                          // Move to next assignment - no submission requirement
+                          setCurrentAssignmentIndex(nextIndex)
+                          setCurrentAssignment(topic.tasks[nextIndex])
+                          setUserCode('')
+                          setAssignmentSubmitted(false)
+                          setAssignmentFeedback(null)
+                          setTestResults(null)
+                          
+                          // Clear output and review
+                          const outputDiv = document.getElementById('assignment-output')
+                          const reviewDiv = document.getElementById('assignment-review')
+                          if (outputDiv) {
+                            outputDiv.innerHTML = '<pre style="margin: 0; color: #6b7280; font-family: Monaco, monospace;">Click "Run" to test your code</pre>'
+                          }
+                          if (reviewDiv) {
+                            reviewDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Submit your code to get feedback</div>'
+                          }
+                        } else {
+                          // All assignments completed - topic is now completed
+                          setPhaseProgress(prev => ({
+                            ...prev,
+                            assignment: true,
+                            feedback: true // Since we combined them
+                          }))
+                          
+                          console.log(`🎉 Topic ${topicId} completed! All assignments finished.`)
+                          
+                          // Show completion message
+                          alert(`🎉 Congratulations! You've mastered ${topic.title}!\n\nAll assignments completed successfully. You can now return to the dashboard to continue with the next topic.`)
+                        }
+                      }}
+                      style={{
+                        backgroundColor: '#10a37f',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.8rem',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <div style={{
+                    flex: 1,
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '0 0 6px 6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0 // Important for flex child to shrink
+                  }}>
+                    <div
+                      id="assignment-review"
+                      className="assignment-review"
+                      style={{
+                        flex: 1,
+                        padding: '16px',
+                        backgroundColor: 'transparent',
+                        color: '#111827',
+                        fontSize: '0.8rem',
+                        overflow: 'auto',
+                        lineHeight: '1.5',
+                        minHeight: 0, // Important for scrolling
+                        maxWidth: '100%',
+                        wordBreak: 'break-word'
+                      }}
+                    >
+                      <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                        Submit your code to get feedback
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Assignment Action Buttons */}
-            <div style={{
-              padding: '16px 24px',
-              backgroundColor: '#f9fafb',
-              borderTop: '1px solid #e5e7eb',
+            {/* Sticky Footer with Action Buttons */}
+            <div className="assignment-sticky-footer" style={{
+              position: 'sticky',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: '#ffffff',
+              borderTop: '2px solid #e5e7eb',
+              padding: '12px 24px',
               display: 'flex',
-              gap: '12px',
-              justifyContent: 'flex-end'
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              zIndex: 100,
+              boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)'
             }}>
-              <button
-                onClick={async () => {
-                  const outputDiv = document.getElementById('assignment-output')
-                  if (!outputDiv) return
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '0.85rem',
+                color: '#6b7280'
+              }}>
+                <span>Assignment {currentAssignmentIndex + 1} of {topic?.tasks?.length || 0}</span>
+                {testResults && (
+                  <span style={{
+                    color: testResults.every(r => r.passed) ? '#10a37f' : '#dc2626',
+                    fontWeight: '500'
+                  }}>
+                    {testResults.every(r => r.passed) ? '✓ Tests Passed' : '✗ Tests Failed'}
+                  </span>
+                )}
+              </div>
+              
+              <div className="assignment-sticky-actions" style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => {
+                    // Execute code and show output
+                    const outputDiv = document.getElementById('assignment-output')
+                    if (!outputDiv) return
 
-                  try {
-                    // Show loading state
-                    outputDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Executing code...</div>'
-
-                    // Execute code securely on server
-                    const response = await learning.executeCode(userCode, topicId, currentAssignmentIndex)
-
-                    if (response.data.success) {
-                      const execution = response.data.data.execution
-
-                      if (execution.success) {
-                        const outputText = execution.output || 'No output'
+                    try {
+                      const outputs = []
+                      const originalConsoleLog = console.log
+                      console.log = (...args) => {
+                        outputs.push(args.map(arg => String(arg)).join(' '))
+                      }
+                      
+                      try {
+                        eval(userCode)
+                        console.log = originalConsoleLog
+                        
+                        const outputText = outputs.length > 0 ? outputs.join('\n') : 'No output'
                         outputDiv.innerHTML = `<pre style="margin: 0; color: #10a37f; font-family: Monaco, monospace; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">${outputText}</pre>`
-
-                        // Store execution state
-                        setLastExecutionState({
-                          code: userCode,
-                          output: outputText,
-                          hasError: false
-                        })
-                      } else {
-                        const errorMessage = execution.error || 'Unknown error'
+                        
+                        
+                      } catch (executionError) {
+                        console.log = originalConsoleLog
+                        
+                        let errorMessage = `${executionError.name}: ${executionError.message}`
                         outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">${errorMessage}</pre>`
-
-                        // Store error state
-                        setLastExecutionState({
-                          code: userCode,
-                          output: errorMessage,
-                          hasError: true
-                        })
+                        
                       }
-                    } else {
-                      const errorMessage = response.data.message || 'Server error'
-                      outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">Server Error: ${errorMessage}</pre>`
+                      
+                    } catch (generalError) {
+                      outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">Unexpected error: ${generalError.message}</pre>`
                     }
-                  } catch (error) {
-                    console.error('Code execution error:', error)
-                    outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">Network Error: ${error.message}</pre>`
-                  }
-                }}
-                disabled={!userCode.trim()}
-                style={{
-                  backgroundColor: !userCode.trim() ? '#e5e7eb' : '#10a37f',
-                  color: !userCode.trim() ? '#9ca3af' : 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 16px',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  cursor: !userCode.trim() ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                Run Code
-              </button>
-
-              <button
-                onClick={async () => {
-                  if (!userCode.trim() || !currentAssignment) return
-
-                  const outputDiv = document.getElementById('assignment-output')
-                  const reviewDiv = document.getElementById('assignment-review')
-
-                  try {
-                    // Show loading state
-                    if (outputDiv) {
-                      outputDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Executing and validating code...</div>'
-                    }
-                    if (reviewDiv) {
-                      reviewDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Preparing feedback...</div>'
-                    }
-
-                    // Execute code securely on server with test validation
-                    const response = await learning.executeCode(userCode, topicId, currentAssignmentIndex)
-
-                    if (response.data.success) {
-                      const execution = response.data.data.execution
-                      setTestResults(execution.testResults || [])
+                  }}
+                  disabled={!userCode.trim()}
+                  style={{
+                    backgroundColor: !userCode.trim() ? '#e5e7eb' : '#10a37f',
+                    color: !userCode.trim() ? '#9ca3af' : 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 20px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: !userCode.trim() ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Run
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!userCode.trim() || !currentAssignment) return
+                    
+                    // Run tests and submit assignment
+                    const outputDiv = document.getElementById('assignment-output')
+                    const reviewDiv = document.getElementById('assignment-review')
+                    
+                    // Execute code and validate against test cases
+                    try {
+                      const outputs = []
+                      const originalConsoleLog = console.log
+                      console.log = (...args) => {
+                        outputs.push(args.map(arg => String(arg)).join(' '))
+                      }
+                      
+                      eval(userCode)
+                      console.log = originalConsoleLog
+                      
+                      const userOutput = outputs.join('\n')
+                      const testResults = currentAssignment.testCases.map(testCase => ({
+                        expected: testCase.expectedOutput,
+                        actual: userOutput,
+                        passed: userOutput === testCase.expectedOutput
+                      }))
+                      
+                      const allPassed = testResults.every(result => result.passed)
+                      setTestResults(testResults)
                       setAssignmentSubmitted(true)
-
-                      // Show execution results
+                      
+                      // Show test results in output
                       if (outputDiv) {
-                        const allPassed = execution.allTestsPassed
                         const resultColor = allPassed ? '#10a37f' : '#dc2626'
-                        const statusText = allPassed ? 'PASSED ✓' : 'FAILED ✗'
-
-                        let outputHtml = `<pre style="margin: 0; color: #111827; font-family: Monaco, monospace; line-height: 1.4;">`
-
-                        if (execution.output) {
-                          outputHtml += `Output: ${execution.output}\n\n`
-                        }
-
-                        if (execution.testResults && execution.testResults.length > 0) {
-                          outputHtml += `Test Results:\n`
-                          execution.testResults.forEach((test, index) => {
-                            const testStatus = test.passed ? '✓' : '✗'
-                            outputHtml += `Test ${index + 1}: ${testStatus} Expected: "${test.expected}", Got: "${test.actual}"\n`
-                          })
-                          outputHtml += `\nOverall Result: `
-                        } else {
-                          outputHtml += `Result: `
-                        }
-
-                        outputHtml += `</pre><div style="color: ${resultColor}; font-weight: bold; margin-top: 8px; font-size: 1.1em;">${statusText}</div>`
-                        outputDiv.innerHTML = outputHtml
+                        outputDiv.innerHTML = `<pre style="margin: 0; color: ${resultColor}; font-family: Monaco, monospace; line-height: 1.4;">Output: ${userOutput}\n\nTest Result: ${allPassed ? 'PASSED ✓' : 'FAILED ✗'}</pre>`
                       }
-
-                      // Generate AI-powered review
+                      
+                      // Generate AI review
                       if (reviewDiv) {
-                        reviewDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Generating AI code review...</div>'
-
-                        try {
-                          const feedbackResponse = await learning.getFeedback(topicId, userCode, currentAssignment)
-
-                          if (feedbackResponse.data.success) {
-                            const feedback = feedbackResponse.data.data.feedback
-                            reviewDiv.innerHTML = `<div style="color: #111827; line-height: 1.5; white-space: pre-wrap;">${feedback}</div>`
+                        reviewDiv.innerHTML = '<div style="color: #6b7280; font-style: italic;">Generating code review...</div>'
+                        
+                        setTimeout(() => {
+                          let review = `**Code Review:**\n\n`
+                          
+                          if (allPassed) {
+                            review += `🎉 **Excellent work!** Your solution passes all test cases.\n\n`
+                            review += `**What you did well:**\n`
+                            review += `- Correct logic implementation\n`
+                            review += `- Proper syntax usage\n`
+                            review += `- Expected output achieved\n\n`
+                            review += `**Professional Tips:**\n`
+                            review += `- Consider code readability\n`
+                            review += `- Think about edge cases\n`
+                            review += `- Practice different approaches\n\n`
+                            review += `Ready for the next challenge!`
                           } else {
-                            // Enhanced fallback review
-                            let review = `**Code Review:**\n\n`
-
-                            if (execution.allTestsPassed) {
-                              review += `🎉 **Excellent work!** Your solution passes all test cases.\n\n`
-                              review += `**What you did well:**\n`
-                              review += `- Correct logic implementation\n`
-                              review += `- Proper syntax usage\n`
-                              review += `- Expected output achieved\n\n`
-                              review += `**Professional Tips:**\n`
-                              review += `- Consider code readability\n`
-                              review += `- Think about edge cases\n`
-                              review += `- Practice different approaches\n\n`
-                              review += `✅ **Ready for the next challenge!** Click "Next" to continue.`
-                            } else {
-                              review += `**Almost there!** Let's improve your solution.\n\n`
-                              review += `**Issues found:**\n`
-                              execution.testResults?.forEach((result, index) => {
-                                if (!result.passed) {
-                                  review += `- Test ${index + 1}: Expected "${result.expected}", Got "${result.actual}"\n`
-                                }
-                              })
-                              review += `\n**Suggestions:**\n`
-                              review += `- Check your console.log statement\n`
-                              review += `- Verify the exact output format\n`
-                              review += `- Test with the expected values\n\n`
-                              review += `💪 **Keep trying!** You're on the right track.`
-                            }
-
-                            reviewDiv.innerHTML = `<div style="color: #111827; line-height: 1.5; white-space: pre-wrap;">${review}</div>`
+                            review += `**Almost there!** Let's improve your solution.\n\n`
+                            review += `**Issues found:**\n`
+                            testResults.forEach((result, index) => {
+                              if (!result.passed) {
+                                review += `- Expected: "${result.expected}", Got: "${result.actual}"\n`
+                              }
+                            })
+                            review += `\n**Suggestions:**\n`
+                            review += `- Check your console.log statement\n`
+                            review += `- Verify the exact output format\n`
+                            review += `- Test with the expected values\n\n`
+                            review += `Try again - you're on the right track!`
                           }
-                        } catch (feedbackError) {
-                          console.error('Feedback generation failed:', feedbackError)
-                          // Simple fallback without AI
-                          const isSuccess = execution.allTestsPassed
-                          const message = isSuccess
-                            ? `✅ **Great job!** All tests passed. Click "Next" to continue.`
-                            : `❌ **Keep trying!** Some tests failed. Check the output above and adjust your code.`
-                          reviewDiv.innerHTML = `<div style="color: #111827; line-height: 1.5;">${message}</div>`
-                        }
+                          
+                          reviewDiv.innerHTML = `<div style="color: #111827; line-height: 1.5; white-space: pre-wrap;">${review}</div>`
+                        }, 1000)
                       }
-
-                    } else {
-                      throw new Error(response.data.message || 'Code execution failed')
+                      
+                    } catch (error) {
+                      setTestResults([{ passed: false, error: error.message }])
+                      setAssignmentSubmitted(true)
+                      
+                      if (outputDiv) {
+                        outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">Error: ${error.message}\n\nTest Result: FAILED ✗</pre>`
+                      }
+                      
+                      if (reviewDiv) {
+                        reviewDiv.innerHTML = `<div style="color: #111827; line-height: 1.5;">**Code Review:**\n\nThere's a syntax or runtime error in your code. Please fix the error and try again.\n\n**Error:** ${error.message}</div>`
+                      }
                     }
-
-                  } catch (error) {
-                    console.error('Assignment submission error:', error)
-                    setTestResults([{ passed: false, error: error.message }])
-                    setAssignmentSubmitted(true)
-
-                    if (outputDiv) {
-                      outputDiv.innerHTML = `<pre style="margin: 0; color: #dc2626; font-family: Monaco, monospace;">Error: ${error.message}\n\nTest Result: FAILED ✗</pre>`
-                    }
-
-                    if (reviewDiv) {
-                      reviewDiv.innerHTML = `<div style="color: #111827; line-height: 1.5;">**Code Review:**\n\nThere was an error executing your code. Please check your syntax and try again.\n\n**Error:** ${error.message}</div>`
-                    }
-                  }
-                }}
-                disabled={!userCode.trim()}
-                style={{
-                  backgroundColor: !userCode.trim() ? '#e5e7eb' : '#f59e0b',
-                  color: !userCode.trim() ? '#9ca3af' : 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 16px',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  cursor: !userCode.trim() ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                Submit & Test
-              </button>
+                  }}
+                  disabled={!userCode.trim()}
+                  style={{
+                    backgroundColor: !userCode.trim() ? '#e5e7eb' : '#f59e0b',
+                    color: !userCode.trim() ? '#9ca3af' : 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 20px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: !userCode.trim() ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Submit
+                </button>
+              </div>
             </div>
-          </div>
+          </>
         ) : (
           // Regular Learning Interface (Session/Feedback) 
           <>
-            {!sessionStarted ? (
-              // Topic Overview - Only show if no existing history
-              <div style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '12px',
-                padding: '32px',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                maxWidth: '800px',
-                margin: '0 auto'
+        {!sessionStarted ? (
+          // Topic Overview - Only show if no existing history
+          <div style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid #e5e7eb',
+            borderRadius: '12px',
+            padding: '32px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            maxWidth: '800px',
+            margin: '0 auto'
+          }}>
+            <h3 style={{
+              fontSize: '1.5rem',
+              fontWeight: '700',
+              color: '#111827',
+              marginBottom: '16px'
+            }}>
+              {topic.title}
+            </h3>
+
+            <div style={{ marginBottom: '24px' }}>
+              <h4 style={{
+                fontSize: '1.125rem',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '12px'
               }}>
-                <h3 style={{
-                  fontSize: '1.5rem',
-                  fontWeight: '700',
-                  color: '#111827',
-                  marginBottom: '16px'
+                Learning Objectives:
+              </h4>
+              <ul style={{ paddingLeft: '20px', color: '#6b7280' }}>
+                {topic.outcomes?.map((outcome, index) => (
+                  <li key={index} style={{ marginBottom: '8px' }}>
+                    {outcome}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div style={{
+              backgroundColor: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '24px'
+            }}>
+              <p style={{
+                color: '#0c4a6e',
+                margin: 0,
+                fontSize: '0.875rem'
+              }}>
+                💡 Ready to start your personalized learning session with Sara?
+                This topic contains {topic.tasks?.length || 0} practice tasks that we'll work through together.
+              </p>
+            </div>
+
+            {chatError && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '24px'
+              }}>
+                <p style={{
+                  color: '#dc2626',
+                  margin: 0,
+                  fontSize: '0.875rem'
                 }}>
-                  {topic.title}
-                </h3>
+                  ❌ {chatError}
+                </p>
+              </div>
+            )}
 
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{
-                    fontSize: '1.125rem',
-                    fontWeight: '600',
-                    color: '#111827',
-                    marginBottom: '12px'
-                  }}>
-                    Learning Objectives:
-                  </h4>
-                  <ul style={{ paddingLeft: '20px', color: '#6b7280' }}>
-                    {topic.outcomes?.map((outcome, index) => (
-                      <li key={index} style={{ marginBottom: '8px' }}>
-                        {outcome}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div style={{
-                  backgroundColor: '#f0f9ff',
-                  border: '1px solid #bae6fd',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  marginBottom: '24px'
-                }}>
-                  <p style={{
-                    color: '#0c4a6e',
-                    margin: 0,
-                    fontSize: '0.875rem'
-                  }}>
-                    💡 Ready to start your personalized learning session with Sara?
-                    This topic contains {topic.tasks?.length || 0} practice tasks that we'll work through together.
-                  </p>
-                </div>
-
-                {chatError && (
+            <button
+              onClick={startSession}
+              disabled={isTyping || !historyChecked}
+              style={{
+                padding: '16px 32px',
+                backgroundColor: isTyping ? '#9ca3af' : '#10a37f',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: isTyping ? 'not-allowed' : 'pointer',
+                fontSize: '1.1rem',
+                fontWeight: '600',
+                width: '100%',
+                transition: 'background-color 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              {isTyping ? (
+                <>
                   <div style={{
-                    backgroundColor: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    marginBottom: '24px'
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid #ffffff',
+                    borderTop: '2px solid transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }}></div>
+                  Starting Session...
+                </>
+              ) : (
+                <>
+                  🚀 Continue Learning with Sara
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          // Chat Interface - Full Screen (NO CONTAINER)
+          <>
+            {/* Chat Messages - Full Screen */}
+            <div className="chat-messages" style={{
+              flex: 1,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              padding: '24px 32px',
+              backgroundColor: '#ffffff',
+              WebkitOverflowScrolling: 'touch'
+            }}>
+              {messages.map((message, index) => (
+                <div key={index} style={{
+                  display: 'flex',
+                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                  width: '100%',
+                  maxWidth: '1000px',
+                  margin: '0 auto'
+                }}>
+                  <div className={`message-bubble ${message.role === 'user' ? 'user-message' : ''}`} style={{
+                    maxWidth: message.role === 'user' ? '70%' : '85%',
+                    padding: '12px 16px',
+                    borderRadius: message.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                    backgroundColor: message.role === 'user' ? '#10a37f' : '#f8f9fa',
+                    border: message.role === 'assistant' ? '1px solid #e9ecef' : 'none',
+                    color: message.role === 'user' ? 'white' : '#212529',
+                    fontSize: '0.95rem',
+                    lineHeight: '1.5',
+                    boxShadow: message.role === 'user' ? '0 2px 6px rgba(16, 163, 127, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
+                    position: 'relative',
+                    wordBreak: 'break-word'
                   }}>
-                    <p style={{
-                      color: '#dc2626',
-                      margin: 0,
-                      fontSize: '0.875rem'
-                    }}>
-                      ❌ {chatError}
-                    </p>
+                    {message.role === 'assistant' && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        opacity: 0.7,
+                        marginBottom: '4px',
+                        fontWeight: '600',
+                        color: '#10a37f'
+                      }}>
+                        Sara
+                      </div>
+                    )}
+                    <MessageContent content={message.content} role={message.role} />
                   </div>
-                )}
+                </div>
+              ))}
 
-                <button
-                  onClick={startSession}
-                  disabled={isTyping || !historyChecked}
+              {isTyping && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-start',
+                  width: '100%',
+                  maxWidth: '1000px',
+                  margin: '0 auto'
+                }}>
+                  <div style={{
+                    maxWidth: '85%',
+                    padding: '12px 16px',
+                    borderRadius: '16px 16px 16px 4px',
+                    backgroundColor: '#f8f9fa',
+                    border: '1px solid #e9ecef',
+                    color: '#212529',
+                    fontSize: '0.95rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                  }}>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      opacity: 0.7,
+                      marginBottom: '4px',
+                      fontWeight: '600',
+                      color: '#10a37f'
+                    }}>
+                      Sara
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div style={{ width: '8px', height: '8px', backgroundColor: '#10a37f', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
+                      <div style={{ width: '8px', height: '8px', backgroundColor: '#10a37f', borderRadius: '50%', animation: 'pulse 1.5s infinite 0.2s' }}></div>
+                      <div style={{ width: '8px', height: '8px', backgroundColor: '#10a37f', borderRadius: '50%', animation: 'pulse 1.5s infinite 0.4s' }}></div>
+                      <span style={{ marginLeft: '8px', fontSize: '0.9rem', color: '#6c757d' }}>Sara is thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Chat Error */}
+            {chatError && (
+              <div style={{
+                padding: '16px 32px',
+                backgroundColor: '#fef2f2',
+                borderTop: '1px solid #fecaca',
+                color: '#dc2626',
+                fontSize: '1rem',
+                textAlign: 'center'
+              }}>
+                ❌ {chatError}
+              </div>
+            )}
+
+            {/* Chat Input - Full Width */}
+            <div className="chat-input-container" style={{
+              padding: '16px 32px 24px',
+              borderTop: '1px solid #e5e7eb',
+              backgroundColor: '#ffffff',
+              flexShrink: 0
+            }}>
+              <div style={{
+                display: 'flex',
+                gap: '16px',
+                alignItems: 'flex-end',
+                maxWidth: '1000px',
+                margin: '0 auto',
+                width: '100%'
+              }}>
+                <textarea
+                  ref={inputRef}
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={
+                    currentPhase === 'session' && sessionComplete 
+                      ? "Session complete! Click 'Start Practicing' above to continue" 
+                      : "Type your message"
+                  }
+                  disabled={isTyping || (currentPhase === 'session' && sessionComplete)}
+                  className="chat-input"
                   style={{
-                    padding: '16px 32px',
-                    backgroundColor: isTyping ? '#9ca3af' : '#10a37f',
+                    flex: 1,
+                    padding: '12px 16px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '10px',
+                    fontSize: '0.95rem',
+                    fontFamily: 'inherit',
+                    resize: 'none',
+                    minHeight: '44px',
+                    maxHeight: '120px',
+                    backgroundColor: (isTyping || (currentPhase === 'session' && sessionComplete)) ? '#f9fafb' : 'white',
+                    color: (isTyping || (currentPhase === 'session' && sessionComplete)) ? '#9ca3af' : '#111827',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    borderColor: currentMessage.trim() ? '#10a37f' : '#e5e7eb'
+                  }}
+                  rows="1"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!currentMessage.trim() || isTyping || (currentPhase === 'session' && sessionComplete)}
+                  className="send-button"
+                  style={{
+                    padding: '12px 20px',
+                    backgroundColor: (!currentMessage.trim() || isTyping || (currentPhase === 'session' && sessionComplete)) ? '#d1d5db' : '#10a37f',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '8px',
-                    cursor: isTyping ? 'not-allowed' : 'pointer',
-                    fontSize: '1.1rem',
+                    borderRadius: '10px',
+                    cursor: (!currentMessage.trim() || isTyping || (currentPhase === 'session' && sessionComplete)) ? 'not-allowed' : 'pointer',
+                    fontSize: '0.95rem',
                     fontWeight: '600',
-                    width: '100%',
-                    transition: 'background-color 0.2s',
+                    transition: 'all 0.2s',
+                    minWidth: '80px',
+                    height: '44px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px'
+                    boxShadow: (!currentMessage.trim() || isTyping) ? 'none' : '0 1px 4px rgba(16, 163, 127, 0.3)'
                   }}
                 >
-                  {isTyping ? (
-                    <>
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid #ffffff',
-                        borderTop: '2px solid transparent',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite'
-                      }}></div>
-                      Starting Session...
-                    </>
-                  ) : (
-                    <>
-                      🚀 Continue Learning with Sara
-                    </>
-                  )}
+                  Send
                 </button>
               </div>
-            ) : (
-              // Chat Interface - Full Screen (NO CONTAINER)
-              <>
-                {/* Chat Messages - Full Screen */}
-                <div className="chat-messages" style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  padding: '24px 32px',
-                  backgroundColor: '#ffffff',
-                  WebkitOverflowScrolling: 'touch'
-                }}>
-                  {messages.map((message, index) => (
-                    <div key={index} style={{
-                      display: 'flex',
-                      justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-                      width: '100%',
-                      maxWidth: '1000px',
-                      margin: '0 auto'
-                    }}>
-                      <div className={`message-bubble ${message.role === 'user' ? 'user-message' : ''}`} style={{
-                        maxWidth: message.role === 'user' ? '70%' : '85%',
-                        padding: '12px 16px',
-                        borderRadius: message.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        backgroundColor: message.role === 'user' ? '#10a37f' : '#f8f9fa',
-                        border: message.role === 'assistant' ? '1px solid #e9ecef' : 'none',
-                        color: message.role === 'user' ? 'white' : '#212529',
-                        fontSize: '0.95rem',
-                        lineHeight: '1.5',
-                        boxShadow: message.role === 'user' ? '0 2px 6px rgba(16, 163, 127, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
-                        position: 'relative',
-                        wordBreak: 'break-word'
-                      }}>
-                        {message.role === 'assistant' && (
-                          <div style={{
-                            fontSize: '0.75rem',
-                            opacity: 0.7,
-                            marginBottom: '4px',
-                            fontWeight: '600',
-                            color: '#10a37f'
-                          }}>
-                            Sara
-                          </div>
-                        )}
-                        <MessageContent content={message.content} role={message.role} />
-                      </div>
-                    </div>
-                  ))}
-
-                  {isTyping && (
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-start',
-                      width: '100%',
-                      maxWidth: '1000px',
-                      margin: '0 auto'
-                    }}>
-                      <div style={{
-                        maxWidth: '85%',
-                        padding: '12px 16px',
-                        borderRadius: '16px 16px 16px 4px',
-                        backgroundColor: '#f8f9fa',
-                        border: '1px solid #e9ecef',
-                        color: '#212529',
-                        fontSize: '0.95rem',
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-                      }}>
-                        <div style={{
-                          fontSize: '0.75rem',
-                          opacity: 0.7,
-                          marginBottom: '4px',
-                          fontWeight: '600',
-                          color: '#10a37f'
-                        }}>
-                          Sara
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <div style={{ width: '8px', height: '8px', backgroundColor: '#10a37f', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
-                          <div style={{ width: '8px', height: '8px', backgroundColor: '#10a37f', borderRadius: '50%', animation: 'pulse 1.5s infinite 0.2s' }}></div>
-                          <div style={{ width: '8px', height: '8px', backgroundColor: '#10a37f', borderRadius: '50%', animation: 'pulse 1.5s infinite 0.4s' }}></div>
-                          <span style={{ marginLeft: '8px', fontSize: '0.9rem', color: '#6c757d' }}>Sara is thinking...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* Chat Error */}
-                {chatError && (
-                  <div style={{
-                    padding: '16px 32px',
-                    backgroundColor: '#fef2f2',
-                    borderTop: '1px solid #fecaca',
-                    color: '#dc2626',
-                    fontSize: '1rem',
-                    textAlign: 'center'
-                  }}>
-                    ❌ {chatError}
-                  </div>
-                )}
-
-                {/* Chat Input - Full Width */}
-                <div className="chat-input-container" style={{
-                  padding: '16px 32px 24px',
-                  borderTop: '1px solid #e5e7eb',
-                  backgroundColor: '#ffffff',
-                  flexShrink: 0
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    gap: '16px',
-                    alignItems: 'flex-end',
-                    maxWidth: '1000px',
-                    margin: '0 auto',
-                    width: '100%'
-                  }}>
-                    <textarea
-                      ref={inputRef}
-                      value={currentMessage}
-                      onChange={(e) => setCurrentMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder={
-                        currentPhase === 'session' && sessionComplete
-                          ? "Session complete! Click 'Start Practicing' above to continue"
-                          : "Type your message"
-                      }
-                      disabled={isTyping || (currentPhase === 'session' && sessionComplete)}
-                      className="chat-input"
-                      style={{
-                        flex: 1,
-                        padding: '12px 16px',
-                        border: '2px solid #e5e7eb',
-                        borderRadius: '10px',
-                        fontSize: '0.95rem',
-                        fontFamily: 'inherit',
-                        resize: 'none',
-                        minHeight: '44px',
-                        maxHeight: '120px',
-                        backgroundColor: (isTyping || (currentPhase === 'session' && sessionComplete)) ? '#f9fafb' : 'white',
-                        color: (isTyping || (currentPhase === 'session' && sessionComplete)) ? '#9ca3af' : '#111827',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                        borderColor: currentMessage.trim() ? '#10a37f' : '#e5e7eb'
-                      }}
-                      rows="1"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={!currentMessage.trim() || isTyping || (currentPhase === 'session' && sessionComplete)}
-                      className="send-button"
-                      style={{
-                        padding: '12px 20px',
-                        backgroundColor: (!currentMessage.trim() || isTyping || (currentPhase === 'session' && sessionComplete)) ? '#d1d5db' : '#10a37f',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '10px',
-                        cursor: (!currentMessage.trim() || isTyping || (currentPhase === 'session' && sessionComplete)) ? 'not-allowed' : 'pointer',
-                        fontSize: '0.95rem',
-                        fontWeight: '600',
-                        transition: 'all 0.2s',
-                        minWidth: '80px',
-                        height: '44px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: (!currentMessage.trim() || isTyping) ? 'none' : '0 1px 4px rgba(16, 163, 127, 0.3)'
-                      }}
-                    >
-                      Send
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+            </div>
           </>
-        )
-        }
-      </main >
+        )}
+        </>
+        )}
+      </main>
 
       {/* CSS Animations and Mobile Styles */}
-      < style > {`
+      <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
@@ -2309,7 +2358,8 @@ const Learn = () => {
         
         /* Code Editor Header - Ensure visibility */
         .assignment-left-panel .assignment-editor-header,
-        .playground-left-panel .playground-editor-header {
+        .playground-editor-panel .playground-editor-header,
+        .playground-output-header {
           display: flex !important;
           visibility: visible !important;
           background-color: #f9fafb !important;
@@ -2320,7 +2370,7 @@ const Learn = () => {
         
         /* Code Editor Content Area - Ensure visibility */
         .assignment-left-panel > div:nth-child(3) > div:last-child,
-        .playground-left-panel > div:nth-child(2) > div:last-child {
+        .playground-editor-panel > div:nth-child(2) > div:last-child {
           flex: 1 !important;
           display: flex !important;
           background-color: #ffffff !important;
@@ -2343,8 +2393,16 @@ const Learn = () => {
           position: relative !important;
         }
         
-        /* Base Mobile Styles */
+        /* Unified Responsive System */
         @media (max-width: 768px) {
+          /* Responsive headers */
+          .playground-editor-header,
+          .playground-output-header {
+            height: clamp(48px, 8vh, 64px) !important;
+            padding: clamp(8px, 2vh, 16px) !important;
+            font-size: clamp(0.7rem, 2vw, 0.8rem) !important;
+          }
+          
           /* Assignment Question Section - Mobile */
           .assignment-question-section {
             max-height: 140px !important;
@@ -2415,46 +2473,47 @@ const Learn = () => {
             border-right: 1px solid #e5e7eb !important;
           }
           
-          /* Layout Adjustments */
-          /* Mobile: Stack panels vertically */
-          .playground-main-content,
-          .assignment-main-content {
-            flex-direction: column !important;
-            height: calc(100vh - 180px) !important; /* Account for header and sticky footer */
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
+          /* Responsive layout system */
+          .playground-editor-panel,
+          .playground-output-panel {
+            min-height: clamp(120px, 20vh, 300px) !important;
+            max-height: none !important;
           }
           
-          .playground-left-panel,
-          .assignment-left-panel {
-            border-right: none !important;
-            border-bottom: 1px solid #e5e7eb !important;
-            min-height: 350px !important;
-            flex-shrink: 0 !important;
+          .playground-splitter {
+            height: clamp(8px, 2vh, 16px) !important;
+            background: #e5e7eb !important;
+            cursor: row-resize !important;
+            touch-action: none !important;
           }
           
-          .playground-right-panel,
-          .assignment-right-panel {
-            width: 100% !important;
-            min-height: 300px !important;
-            max-height: 400px !important;
-            flex-shrink: 0 !important;
+          /* Responsive splitter indicator */
+          .playground-splitter::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: clamp(30px, 8vw, 50px);
+            height: 2px;
+            background: #9ca3af;
+            border-radius: 1px;
           }
           
-          .playground-right-panel > div,
-          .assignment-right-panel > div {
-            height: 50% !important;
-            max-height: 250px !important;
+          /* Responsive line numbers and content */
+          .playground-line-numbers,
+          .terminal-line-numbers {
+            width: clamp(30px, 8vw, 50px) !important;
+            padding: clamp(8px, 2vw, 16px) clamp(4px, 1vw, 8px) !important;
+            font-size: clamp(0.65rem, 2vw, 0.75rem) !important;
           }
           
-          /* Enable scrolling to access all sections on mobile */
-          .playground-main-content,
-          .assignment-main-content {
-            max-height: calc(100vh - 140px) !important; /* Account for sticky footer */
-            overflow-y: auto !important;
-            scroll-behavior: smooth !important;
-            -webkit-overflow-scrolling: touch !important;
+          .playground-textarea,
+          .playground-output {
+            padding: clamp(8px, 2vw, 16px) !important;
+            font-size: clamp(0.65rem, 2vw, 0.75rem) !important;
           }
+          
 
           /* Sticky footer adjustments for mobile */
           .assignment-sticky-footer {
@@ -2483,28 +2542,78 @@ const Learn = () => {
           
           .playground-editor-header,
           .assignment-editor-header {
-            padding: 6px 12px !important;
+            padding: 12px 16px !important;
+            flex-direction: row !important; /* Keep horizontal layout */
+            justify-content: space-between !important;
+            align-items: center !important;
+            gap: 12px !important;
+            height: 56px !important; /* Much larger height for proper breathing room */
+            min-height: 56px !important;
+            max-height: 56px !important;
+          }
+          
+          .playground-header-actions {
+            display: flex !important;
+            flex-direction: row !important; /* Ensure buttons are side by side */
+            flex-shrink: 0 !important; /* Prevent buttons from shrinking */
+            gap: 8px !important; /* Normal gap like desktop */
+            align-items: center !important;
+          }
+          
+          /* Remove ALL mobile overrides - let inline styles work */
+          
+          /* Prevent buttons from stretching to full header height */
+          .playground-header-actions button {
+            height: 28px !important; /* Force button height */
+            max-height: 28px !important;
+            min-height: 28px !important;
+            flex-shrink: 0 !important;
+            flex-grow: 0 !important;
+            align-self: flex-start !important;
+          }
+          
+          /* Make file tab fit within compact header */
+          .playground-editor-header > div:first-child,
+          .assignment-editor-header > div:first-child {
+            padding: 4px 10px !important;
+            font-size: 0.75rem !important;
+            flex-shrink: 0 !important;
+            border-radius: 4px 4px 0 0 !important;
+            height: 28px !important; /* Match button height */
+            display: flex !important;
+            align-items: center !important;
+            line-height: 1 !important;
+          }
+          
+          /* Optimize buttons for mobile */
+          .assignment-review-header button {
+            padding: 3px 6px !important;
+            font-size: 0.65rem !important;
+            min-width: 60px !important;
           }
           
           .playground-line-numbers,
           .assignment-line-numbers {
             width: 40px !important;
             padding: 12px 4px !important;
-            font-size: 0.7rem !important;
+            font-size: 0.75rem !important; /* Match textarea font size */
           }
           
           .playground-textarea,
           .assignment-textarea {
-            padding: 12px !important;
-            font-size: 0.8rem !important;
-            height: 300px !important; /* Fixed height on mobile */
+            padding: 8px !important;
+            font-size: 0.75rem !important;
+            line-height: 1.4 !important; /* Ensure same line height */
+            min-height: 200px !important; /* Minimum height for mobile */
+            height: auto !important; /* Allow flexible height */
+            max-height: calc(40vh - 100px) !important; /* Limit based on viewport */
           }
           
           /* Code editor containers on mobile */
-          .playground-left-panel > div:nth-child(2),
+          .playground-editor-panel > div:nth-child(2),
           .assignment-left-panel > div:nth-child(3) {
-            max-height: 250px !important; /* Reduced height on mobile */
             flex: 1 !important;
+            overflow: hidden !important;
           }
           
           /* Assignment description on mobile */
@@ -2513,115 +2622,49 @@ const Learn = () => {
             overflow: auto !important;
           }
           
-          .playground-footer,
-          .assignment-footer {
-            padding: 6px 12px !important;
-            font-size: 0.7rem !important;
-          }
-          
-          .playground-footer button,
           .assignment-footer button {
             padding: 4px 8px !important;
             font-size: 0.7rem !important;
           }
           
           .playground-output-header,
-          .playground-ai-header,
           .assignment-output-header,
           .assignment-review-header {
-            padding: 6px 12px !important;
-            font-size: 0.75rem !important;
+            padding: 12px 16px !important;
+            font-size: 0.8rem !important;
+            height: 56px !important; /* Match editor header height */
+            min-height: 56px !important;
           }
           
           .playground-output,
-          .playground-ai-content,
           .assignment-output,
           .assignment-review {
-            padding: 12px !important;
-            font-size: 0.8rem !important;
-            min-height: 120px !important;
-            max-height: 200px !important;
+            padding: 8px !important;
+            font-size: 0.75rem !important;
+            flex: 1 !important; /* Fill available space */
             overflow-y: auto !important;
+            line-height: 1.3 !important; /* Tighter line height for mobile */
           }
         }
         
+        /* Small mobile optimization */
         @media (max-width: 480px) {
-          /* Small mobile adjustments */
-          .playground-header,
-          .assignment-header {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: 8px !important;
-            padding: 8px 12px !important;
-          }
-          
-          .playground-header-dots {
-            align-self: center !important;
+          .playground-editor-header,
+          .playground-output-header {
+            height: clamp(44px, 10vh, 56px) !important;
+            padding: clamp(6px, 1.5vh, 12px) !important;
+            font-size: clamp(0.6rem, 2.5vw, 0.75rem) !important;
           }
           
           .playground-line-numbers,
-          .assignment-line-numbers {
-            width: 35px !important;
-            font-size: 0.65rem !important;
+          .terminal-line-numbers {
+            width: clamp(25px, 10vw, 40px) !important;
+            font-size: clamp(0.6rem, 2.5vw, 0.7rem) !important;
           }
           
           .playground-textarea,
-          .assignment-textarea {
-            font-size: 0.75rem !important;
-          }
-          
-          .playground-footer,
-          .assignment-footer {
-            flex-direction: column !important;
-            gap: 8px !important;
-            align-items: flex-start !important;
-          }
-          
-          .playground-footer-actions,
-          .assignment-footer-actions {
-            display: flex !important;
-            gap: 6px !important;
-            width: 100% !important;
-            justify-content: space-between !important;
-          }
-
-          /* Assignment question section - extra small screens */
-          .assignment-question-section {
-            max-height: 120px !important;
-            padding: 10px 12px !important;
-          }
-
-          .assignment-question-section h3 {
-            font-size: 0.9rem !important;
-          }
-
-          .assignment-question-section p {
-            font-size: 0.8rem !important;
-          }
-
-          /* Sticky footer - small mobile */
-          .assignment-sticky-footer {
-            padding: 6px 12px !important;
-          }
-
-          .assignment-sticky-actions button {
-            padding: 10px 12px !important;
-            font-size: 0.8rem !important;
-          }
-          
-          /* Enable smooth scrolling for small screens */
-          .playground-main-content,
-          .assignment-main-content {
-            scroll-behavior: smooth !important;
-            -webkit-overflow-scrolling: touch !important;
-          }
-          
-          /* Ensure sections are accessible via scroll */
-          .playground-left-panel,
-          .playground-right-panel,
-          .assignment-left-panel,
-          .assignment-right-panel {
-            scroll-margin-top: 20px !important;
+          .playground-output {
+            font-size: clamp(0.6rem, 2.5vw, 0.7rem) !important;
           }
         }
         @keyframes pulse {
@@ -2655,19 +2698,30 @@ const Learn = () => {
           
           .playground-main-content,
           .assignment-main-content {
-            flex-direction: row !important;
+            flex-direction: column !important; /* Keep vertical layout */
+            height: 100vh !important; /* Use full viewport height */
+            min-height: 100vh !important;
+            max-height: 100vh !important;
+            overflow: hidden !important; /* Prevent container overflow */
           }
           
-          .playground-left-panel,
+          /* On larger tablets, keep vertical layout but show splitter */
+          .playground-editor-panel,
           .assignment-left-panel {
-            width: 50% !important;
-            border-right: 1px solid #e5e7eb !important;
+            height: 65% !important;
+            width: 100% !important;
             border-bottom: none !important;
+            border-right: none !important;
           }
           
-          .playground-right-panel,
+          .playground-output-panel,
           .assignment-right-panel {
-            width: 50% !important;
+            height: 30% !important;
+            width: 100% !important;
+          }
+          
+          .playground-splitter {
+            display: block !important;
           }
         }
         
@@ -2697,20 +2751,25 @@ const Learn = () => {
           
           .playground-main-content,
           .assignment-main-content {
-            flex-direction: row !important;
+            flex-direction: column !important; /* Keep vertical layout on desktop */
             min-height: calc(100vh - 180px) !important;
           }
           
-          .playground-left-panel,
+          /* Desktop keeps vertical layout with splitter */
+          .playground-editor-panel,
           .assignment-left-panel {
-            width: 50% !important;
-            border-right: 1px solid #e5e7eb !important;
+            width: 100% !important;
+            border-right: none !important;
             border-bottom: none !important;
           }
           
-          .playground-right-panel,
+          .playground-output-panel,
           .assignment-right-panel {
-            width: 50% !important;
+            width: 100% !important;
+          }
+          
+          .playground-splitter {
+            display: block !important;
           }
         }
         
@@ -2749,8 +2808,7 @@ const Learn = () => {
           
           /* Ensure buttons are always accessible */
           .editor-footer,
-          .assignment-footer,
-          .playground-footer {
+          .assignment-footer {
             position: sticky !important;
             bottom: 0 !important;
             background-color: #f9fafb !important;
@@ -2870,8 +2928,8 @@ const Learn = () => {
             gap: 12px !important;
           }
         }
-      `}</style >
-    </div >
+      `}</style>
+    </div>
   )
 }
 
