@@ -58,12 +58,22 @@ export function validateLearningObjectives(outcomes) {
  * @returns {Object|null} - Topic object or null if not found
  */
 export function findTopicById(courses, topicId) {
+  console.log(`🔍 Looking for topic: "${topicId}" (type: ${typeof topicId})`)
+  
   for (const course of courses) {
     const topic = course.topics.find(t => t.id === topicId)
     if (topic) {
+      console.log(`✅ Found topic: "${topic.title}" (id: ${topic.id})`)
       return { ...topic, courseId: course.id, courseTitle: course.title }
     }
   }
+  
+  // Log available topics for debugging
+  const availableTopics = courses.flatMap(course => 
+    course.topics.map(topic => topic.id)
+  )
+  console.log(`❌ Topic "${topicId}" not found. Available topics:`, availableTopics.slice(0, 10))
+  
   return null
 }
 

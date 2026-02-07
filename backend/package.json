@@ -32,6 +32,7 @@
     "isomorphic-dompurify": "^2.8.0",
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^7.0.13",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"
   },

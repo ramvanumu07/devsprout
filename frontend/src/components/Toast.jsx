@@ -39,7 +39,7 @@ const Toast = ({
     switch (type) {
       case 'success':
         return {
-          icon: '',
+          icon: '✓',
           bgColor: '#f0fdf4',
           borderColor: '#bbf7d0',
           textColor: '#16a34a',
@@ -47,7 +47,7 @@ const Toast = ({
         }
       case 'error':
         return {
-          icon: '',
+          icon: '✕',
           bgColor: '#fef2f2',
           borderColor: '#fecaca',
           textColor: '#dc2626',
@@ -55,7 +55,7 @@ const Toast = ({
         }
       case 'warning':
         return {
-          icon: '',
+          icon: '⚠',
           bgColor: '#fffbeb',
           borderColor: '#fed7aa',
           textColor: '#d97706',
@@ -63,7 +63,7 @@ const Toast = ({
         }
       default: // info
         return {
-          icon: '',
+          icon: 'ℹ',
           bgColor: '#f0f9ff',
           borderColor: '#bae6fd',
           textColor: '#0369a1',

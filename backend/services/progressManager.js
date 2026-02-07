@@ -39,13 +39,13 @@ export async function initializeTopicProgress(userId, topicId) {
   const progressData = {
     status: PROGRESS_STATES.IN_PROGRESS,
     phase: PHASES.SESSION,
-    topic_completed: false,
+    status: 'in_progress',
     session_completed: false,
     playtime_completed: false,
     assignment_completed: false,
     current_assignment: 0,
     total_assignments: topic.tasks?.length || 0,
-    completed_assignments: 0,
+    assignments_completed: 0,
     started_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
@@ -176,21 +176,21 @@ export async function completeAssignment(userId, topicId, assignmentIndex) {
     throw new Error(`No progress found for topic ${topicId}`)
   }
 
-  const completedAssignments = (currentProgress.completed_assignments || 0) + 1
+  const completedAssignments = (currentProgress.assignments_completed || 0) + 1
   const totalAssignments = currentProgress.total_assignments || 0
   const isTopicComplete = completedAssignments >= totalAssignments
 
   const progressUpdate = {
     phase: PHASES.ASSIGNMENT,
     current_assignment: Math.min(assignmentIndex + 1, totalAssignments - 1),
-    completed_assignments: completedAssignments,
+    assignments_completed: completedAssignments,
     updated_at: new Date().toISOString()
   }
 
   // CRITICAL: Only mark as fully completed when ALL assignments are done
   if (isTopicComplete) {
     progressUpdate.status = PROGRESS_STATES.COMPLETED
-    progressUpdate.topic_completed = true
+    progressUpdate.status = 'completed'
     progressUpdate.assignment_completed = true
     progressUpdate.completed_at = new Date().toISOString()
     
@@ -223,8 +223,8 @@ export async function getProgressSummary(userId) {
   const totalTopics = allTopics.length
 
   // Calculate accurate counts
-  const completedTopics = allProgress.filter(p => p.topic_completed === true).length
-  const inProgressTopics = allProgress.filter(p => p.topic_completed !== true).length
+  const completedTopics = allProgress.filter(p => p.status === 'completed').length
+  const inProgressTopics = allProgress.filter(p => p.status === 'in_progress').length
   const completionPercentage = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0
 
   console.log(`📊 Progress Summary for user ${userId}:`)
@@ -319,7 +319,7 @@ export async function getNextPhase(userId, topicId) {
     return PHASES.SESSION
   }
 
-  if (progress.topic_completed === true) {
+  if (progress.status === 'completed') {
     return null // Topic is complete
   }
 

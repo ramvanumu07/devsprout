@@ -33,9 +33,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('sara_token')
-      localStorage.removeItem('sara_user')
-      window.location.href = '/login'
+      // Only redirect if we're not already on login/signup pages
+      const currentPath = window.location.pathname
+      const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(currentPath)
+      
+      if (!isAuthPage) {
+        localStorage.removeItem('sara_token')
+        localStorage.removeItem('sara_user')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
@@ -45,24 +51,24 @@ api.interceptors.response.use(
 
 // Authentication
 export const auth = {
-  login: (usernameOrEmail, password) =>
+  login: (usernameOrEmail, password) => 
     api.post('/auth/login', { usernameOrEmail, password }),
-
-  signup: (username, email, name, password, confirmPassword) =>
+  
+  signup: (username, email, name, password, confirmPassword) => 
     api.post('/auth/signup', { username, email, name, password, confirmPassword }),
-
-  forgotPassword: (usernameOrEmail) =>
+  
+  forgotPassword: (usernameOrEmail) => 
     api.post('/auth/forgot-password', { usernameOrEmail }),
-
-  resetPassword: (token, password, confirmPassword) =>
+  
+  resetPassword: (token, password, confirmPassword) => 
     api.post('/auth/reset-password', { token, password, confirmPassword }),
-
+  
   getProfile: () => api.get('/auth/profile'),
-
+  
   updateProfile: (updates) => api.put('/auth/profile', updates),
-
+  
   logout: () => api.post('/auth/logout'),
-
+  
   validate: () => api.get('/auth/validate')
 }
 
@@ -70,46 +76,50 @@ export const auth = {
 export const learning = {
   // Get all courses
   getCourses: () => api.get('/learn/courses'),
-
+  
   // Get all topics
   getTopics: () => api.get('/learn/topics'),
-
+  
   // Get specific topic details
   getTopic: (topicId) => api.get(`/learn/topic/${topicId}`),
-
+  
   // Get session state for a topic
   getState: (topicId) => api.get(`/learn/state/${topicId}`),
 
   // Start session for a topic
-  startSession: (topicId, assignments = []) =>
+  startSession: (topicId, assignments = []) => 
     api.post('/learn/session/start', { topicId, assignments }),
 
   // Session chat
-  sessionChat: (topicId, message) =>
+  sessionChat: (topicId, message) => 
     api.post('/chat/session', { topicId, message }),
 
   // Playtime
-  startPlaytime: (topicId) =>
+  startPlaytime: (topicId) => 
     api.post('/learn/playtime/start', { topicId }),
 
-  completePlaytime: (topicId) =>
+  completePlaytime: (topicId) => 
     api.post('/learn/playtime/complete', { topicId }),
 
-  playtimeChat: (topicId, message) =>
+  playtimeChat: (topicId, message) => 
     api.post('/chat/playtime', { topicId, message }),
 
   // Assignments
-  startAssignments: (topicId) =>
+  startAssignments: (topicId) => 
     api.post('/learn/assignment/start', { topicId }),
 
-  completeAssignment: (topicId, assignmentIndex) =>
-    api.post('/learn/assignment/complete', { topicId, assignmentIndex }),
+  completeAssignment: (topicId, assignmentIndex, code) => 
+    api.post('/learn/assignment/complete', { topicId, assignmentIndex, code }),
 
-  getHint: (topicId, assignment, userCode = '') =>
+  // Code execution
+  executeCode: (code, topicId, assignmentIndex = null) => 
+    api.post('/learn/execute', { code, topicId, assignmentIndex }),
+
+  getHint: (topicId, assignment, userCode = '') => 
     api.post('/chat/assignment/hint', { topicId, assignment, userCode }),
 
   // Feedback
-  getFeedback: (topicId, userCode, assignment) =>
+  getFeedback: (topicId, userCode, assignment) => 
     api.post('/chat/feedback', { topicId, userCode, assignment }),
 
   // Continue learning
@@ -118,7 +128,7 @@ export const learning = {
 
 // Progress API
 export const progress = {
-  getAll: () => api.get('/learn/progress', {
+  getAll: () => api.get('/learn/progress', { 
     params: { _t: Date.now() } // Cache busting
   }),
   getSummary: () => api.get('/learn/progress/summary'),
@@ -255,12 +265,12 @@ api.interceptors.response.use(
     const duration = Date.now() - response.config.startTime
     performanceMetrics.requests++
     performanceMetrics.totalTime += duration
-
+    
     // Log slow requests
     if (duration > 3000) {
       console.warn(`Slow API request: ${response.config.url} took ${duration}ms`)
     }
-
+    
     return response
   },
   (error) => {
@@ -271,11 +281,11 @@ api.interceptors.response.use(
 
 export const getApiMetrics = () => ({
   ...performanceMetrics,
-  averageTime: performanceMetrics.requests > 0
-    ? Math.round(performanceMetrics.totalTime / performanceMetrics.requests)
+  averageTime: performanceMetrics.requests > 0 
+    ? Math.round(performanceMetrics.totalTime / performanceMetrics.requests) 
     : 0,
-  errorRate: performanceMetrics.requests > 0
-    ? Math.round((performanceMetrics.errors / performanceMetrics.requests) * 100)
+  errorRate: performanceMetrics.requests > 0 
+    ? Math.round((performanceMetrics.errors / performanceMetrics.requests) * 100) 
     : 0
 })
 

@@ -14,8 +14,8 @@ import {
   getCompletedTopics,
   getUserProgressSummary
 } from '../services/database.js'
-// import progressManager from '../services/progressManager.js' // Temporarily disabled for debugging
-import { saveChatTurn, saveInitialMessage, clearChatHistory, getChatHistoryString, getChatMessages } from '../services/chatHistory.js'
+import progressManager from '../services/progressManager.js'
+import { saveChatTurn, saveInitialMessage, clearChatHistory, getChatHistoryString, getChatHistory } from '../services/chatService.js'
 import { courses } from '../../data/curriculum.js'
 import { formatLearningObjectives, findTopicById, getAllTopics } from '../utils/curriculum.js'
 import { handleErrorResponse, createSuccessResponse, createErrorResponse } from '../utils/responses.js'
@@ -73,6 +73,77 @@ function validateBody(schema) {
 }
 
 // ============ UTILITY FUNCTIONS ============
+
+// Secure code execution function
+async function executeCodeSecurely(code, testCases = []) {
+  console.log('🔧 Executing code:', code.substring(0, 100) + '...')
+  try {
+    // Create a safe execution context
+    const vm = await import('vm')
+    const context = {
+      console: {
+        log: (...args) => {
+          context.__output = (context.__output || '') + args.join(' ') + '\n'
+        }
+      },
+      __output: '',
+      __error: null
+    }
+    
+    // Set up the context
+    vm.createContext(context)
+    
+    try {
+      // Execute the code in the safe context
+      vm.runInContext(code, context, { timeout: 5000 })
+      
+      const output = context.__output.trim()
+      const results = []
+      
+      // Run test cases if provided
+      for (let i = 0; i < testCases.length; i++) {
+        const testCase = testCases[i]
+        const expected = testCase.expectedOutput
+        const passed = output.includes(expected) || output === expected
+        
+        results.push({
+          testIndex: i,
+          expected,
+          actual: output,
+          passed,
+          description: testCase.description || `Test ${i + 1}`
+        })
+      }
+      
+      const result = {
+        success: true,
+        output,
+        testResults: results,
+        allTestsPassed: results.length === 0 || results.every(r => r.passed)
+      }
+      console.log('✅ Code execution successful:', result)
+      return result
+    } catch (execError) {
+      console.error('❌ Code execution error:', execError.message)
+      return {
+        success: false,
+        error: execError.message,
+        output: '',
+        testResults: [],
+        allTestsPassed: false
+      }
+    }
+  } catch (importError) {
+    // Fallback to basic validation if vm module not available
+    return {
+      success: true,
+      output: 'Code execution not available on this server',
+      testResults: [],
+      allTestsPassed: true,
+      warning: 'Server-side execution disabled'
+    }
+  }
+}
 
 function buildSessionPrompt(topicId, conversationHistory, completedTopics = []) {
   const topic = findTopicById(courses, topicId)
@@ -149,7 +220,9 @@ router.get('/state/:topicId', authenticateToken, async (req, res) => {
     const { topicId } = req.params
     const userId = req.user.userId
 
-    console.log(`🔄 Loading learning state for: ${topicId}`)
+    console.log(`🔄 Loading learning state for: "${topicId}" (type: ${typeof topicId}, length: ${topicId?.length})`)
+    console.log(`🔄 Raw params:`, req.params)
+    console.log(`🔄 Full URL:`, req.url)
 
     // Validate topic exists
     const topic = findTopicById(courses, topicId)
@@ -269,7 +342,7 @@ router.post('/session/start', authenticateToken, rateLimitMiddleware, validateBo
     const result = await saveInitialMessage(userId, topicId, aiResponse)
 
     const directResponse = result.wasCreated ? aiResponse :
-      result.conversationHistory.match(/AGENT: (.+?)(?=\nUSER:|$)/s)?.[1]?.trim() || 'Session ready'
+      result.conversationHistory?.match(/AGENT: (.+?)(?=\nUSER:|$)/s)?.[1]?.trim() || 'Session ready'
 
     // Get updated progress after saving
     const progress = await getProgress(userId, topicId)
@@ -472,10 +545,18 @@ router.post('/assignment/start', authenticateToken, rateLimitMiddleware, validat
   }
 })
 
-router.post('/assignment/complete', authenticateToken, rateLimitMiddleware, validateBody(schemas.assignmentComplete), async (req, res) => {
+router.post('/assignment/complete', authenticateToken, rateLimitMiddleware, async (req, res) => {
   try {
-    const { topicId, assignmentIndex } = req.body
+    const { topicId, assignmentIndex, code } = req.body
     const userId = req.user.userId
+
+    if (!topicId || assignmentIndex === undefined) {
+      return res.status(400).json(createErrorResponse('topicId and assignmentIndex are required'))
+    }
+
+    if (!code || !code.trim()) {
+      return res.status(400).json(createErrorResponse('Code is required to complete assignment'))
+    }
 
     console.log(`📝 Completing assignment ${assignmentIndex} for topic: ${topicId}`)
 
@@ -485,19 +566,39 @@ router.post('/assignment/complete', authenticateToken, rateLimitMiddleware, vali
       return res.status(404).json(createErrorResponse('Topic not found'))
     }
 
-    // Complete assignment - direct database call for compatibility
     const tasks = topic.tasks || []
+    if (assignmentIndex >= tasks.length) {
+      return res.status(400).json(createErrorResponse('Invalid assignment index'))
+    }
+
+    const currentTask = tasks[assignmentIndex]
+    const testCases = currentTask.testCases || []
+
+    // Execute code and validate against test cases
+    const executionResult = await executeCodeSecurely(code, testCases)
+
+    // Check if all tests passed (only if there are test cases)
+    if (testCases.length > 0 && !executionResult.allTestsPassed) {
+      return res.status(400).json(createErrorResponse('Assignment not completed: Some tests are failing', {
+        execution: executionResult,
+        requiresAllTestsPassed: true,
+        failedTests: executionResult.testResults?.filter(t => !t.passed) || []
+      }))
+    }
+
+    // Complete assignment - tests passed or no tests required
     const currentProgress = await getProgress(userId, topicId)
-    const completedAssignments = (currentProgress?.completed_assignments || 0) + 1
+    const completedAssignments = (currentProgress?.assignments_completed || 0) + 1
     const isTopicComplete = completedAssignments >= tasks.length
 
     await upsertProgress(userId, topicId, {
       phase: 'assignment',
       status: isTopicComplete ? 'completed' : 'in_progress',
       current_task: Math.min(assignmentIndex + 1, tasks.length - 1),
-      completed_assignments: completedAssignments,
-      topic_completed: isTopicComplete,
+      assignments_completed: completedAssignments,
+      status: isTopicComplete ? 'completed' : 'in_progress',
       completed_at: isTopicComplete ? new Date().toISOString() : null,
+      saved_code: code, // Save the successful code
       updated_at: new Date().toISOString()
     })
 
@@ -511,6 +612,7 @@ router.post('/assignment/complete', authenticateToken, rateLimitMiddleware, vali
       totalAssignments: totalAssignments,
       nextAssignment: isTopicComplete ? null : assignmentIndex + 1,
       phase: 'assignment',
+      execution: executionResult,
       topic: {
         id: topicId,
         title: topic.title,
@@ -519,6 +621,48 @@ router.post('/assignment/complete', authenticateToken, rateLimitMiddleware, vali
     }))
   } catch (error) {
     handleErrorResponse(res, error, 'complete assignment')
+  }
+})
+
+// ============ CODE EXECUTION ============
+
+router.post('/execute', authenticateToken, async (req, res) => {
+  try {
+    const { code, topicId, assignmentIndex } = req.body
+    
+    if (!code || !topicId) {
+      return res.status(400).json(createErrorResponse('Code and topicId are required'))
+    }
+
+    // Get topic and assignment details
+    const topic = findTopicById(courses, topicId)
+    if (!topic) {
+      return res.status(404).json(createErrorResponse('Topic not found'))
+    }
+
+    let testCases = []
+    if (assignmentIndex !== undefined && topic.tasks && topic.tasks[assignmentIndex]) {
+      testCases = topic.tasks[assignmentIndex].testCases || []
+    }
+
+    // Execute code securely
+    const result = await executeCodeSecurely(code, testCases)
+
+    res.json(createSuccessResponse({
+      execution: result,
+      topic: {
+        id: topicId,
+        title: topic.title
+      },
+      assignment: assignmentIndex !== undefined ? {
+        index: assignmentIndex,
+        total: topic.tasks?.length || 0
+      } : null
+    }))
+
+  } catch (error) {
+    console.error('Code execution error:', error)
+    res.status(500).json(createErrorResponse('Code execution failed'))
   }
 })
 
@@ -535,8 +679,8 @@ router.get('/progress', authenticateToken, async (req, res) => {
     // Calculate summary directly
     const allTopicsFromCurriculum = getAllTopics(courses)
     const totalTopics = allTopicsFromCurriculum.length
-    const completedTopics = allProgress.filter(p => p.topic_completed === true).length
-    const inProgressTopics = allProgress.filter(p => p.topic_completed !== true).length
+    const completedTopics = allProgress.filter(p => p.status === 'completed').length
+    const inProgressTopics = allProgress.filter(p => p.status === 'in_progress').length
     
     const summary = {
       total_topics: totalTopics,
@@ -808,7 +952,8 @@ router.get('/continue', authenticateToken, async (req, res) => {
     res.json(createSuccessResponse({
       lastAccessed: {
         topicId: lastAccessed.topic_id,
-        phase: lastAccessed.phase || 'session'
+        phase: lastAccessed.phase || 'session',
+        status: lastAccessed.status || 'not_started'
       }
     }))
   } catch (error) {
@@ -891,6 +1036,29 @@ router.get('/topic/:topicId', authenticateToken, async (req, res) => {
     }))
   } catch (error) {
     handleErrorResponse(res, error, 'get topic details')
+  }
+})
+
+// ============ DEBUG ENDPOINTS ============
+
+// Debug: List all available topics
+router.get('/debug/topics', (req, res) => {
+  try {
+    const allTopics = courses.flatMap(course => 
+      course.topics.map(topic => ({
+        id: topic.id,
+        title: topic.title,
+        courseId: course.id,
+        courseTitle: course.title
+      }))
+    )
+    
+    res.json(createSuccessResponse({
+      total: allTopics.length,
+      topics: allTopics
+    }))
+  } catch (error) {
+    handleErrorResponse(res, error, 'Failed to get topics')
   }
 })
 

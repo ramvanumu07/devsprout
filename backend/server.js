@@ -17,12 +17,51 @@ import authRoutes from './routes/auth.js'
 import chatRoutes from './routes/chat.js'
 import learningRoutes from './routes/learning.js'
 import progressRoutes from './routes/progress.js'
+import debugSchemaRoutes from './routes/debug-schema.js'
+import debugChatRoutes from './routes/debug-chat.js'
 
 // Import middleware
 import { performanceMonitor } from './middleware/performance.js'
+import { errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
+
+// ============ CORS CONFIGURATION ============
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true)
+    
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'http://localhost:5176',
+      'http://localhost:5177',
+      'http://localhost:5178',
+      'http://localhost:3000'
+    ]
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    
+    const msg = 'The CORS policy for this site does not allow access from the specified Origin.'
+    return callback(new Error(msg), false)
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'X-Correlation-ID',
+  ],
+  optionsSuccessStatus: 200
+}))
 
 // ============ SECURITY MIDDLEWARE ============
 app.use(helmet({
@@ -35,29 +74,6 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
-}))
-
-// ============ CORS CONFIGURATION ============
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:3000'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'X-Correlation-ID',
-  ],
 }))
 
 // ============ PERFORMANCE MIDDLEWARE ============
@@ -78,6 +94,11 @@ app.use('/api/auth', authRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/learn', learningRoutes)
 app.use('/api/progress', progressRoutes)
+app.use('/api/debug', debugSchemaRoutes)
+app.use('/api/debug', debugChatRoutes)
+
+// ============ ERROR HANDLING ============
+app.use(errorHandler)
 
 // ============ HEALTH CHECK ============
 app.get('/health', (req, res) => {
@@ -149,4 +170,3 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
 process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 export default app
-

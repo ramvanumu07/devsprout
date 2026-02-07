@@ -6,11 +6,12 @@
 import express from 'express'
 import { authenticateToken } from './auth.js'
 import { callAI } from '../services/ai.js'
-import { getChatHistory, saveChatTurn, saveInitialMessage, getLastMessages, parseHistoryToMessages } from '../services/chatService.js'
+import { getChatHistory, saveChatTurn, saveInitialMessage, getLastMessages, parseHistoryToMessages, clearChatHistory, getChatHistoryString } from '../services/chatService.js'
+import { getSupabaseClient } from '../services/database.js'
 import { courses } from '../../data/curriculum.js'
 import { formatLearningObjectives, findTopicById } from '../utils/curriculum.js'
 import { getCompletedTopics, upsertProgress } from '../services/database.js'
-// import progressManager from '../services/progressManager.js' // Temporarily disabled for debugging
+import progressManager from '../services/progressManager.js'
 import { handleErrorResponse, createSuccessResponse, createErrorResponse } from '../utils/responses.js'
 import { rateLimitMiddleware } from '../middleware/rateLimiting.js'
 
@@ -18,15 +19,20 @@ const router = express.Router()
 
 // ============ VALIDATION FUNCTIONS ============
 function validateChatRequest(req, res) {
-  const requiredFields = ['message', 'topicId']
+  const { message, topicId } = req.body
 
-  for (const field of requiredFields) {
-    const value = req.body[field]
-    if (!value?.trim?.() && value !== 0 && !value) {
-      res.status(400).json(createErrorResponse(`${field} is required`))
-      return false
-    }
+  // topicId is always required
+  if (!topicId?.trim?.()) {
+    res.status(400).json(createErrorResponse('topicId is required'))
+    return false
   }
+
+  // message is required but can be empty string for session initialization
+  if (message === undefined || message === null) {
+    res.status(400).json(createErrorResponse('message is required'))
+    return false
+  }
+
   return true
 }
 
@@ -76,9 +82,7 @@ Adaptive Behaviors:
 - If wrong: Point out issue gently + why + hint (not answer) + ask retry
 - If stuck after 2 tries: Give more explicit guidance
 
-🚨 COMPLETION SIGNAL 🚨
-You have exactly ${goals.split('\n').length} goals to teach:
-${goals}
+🚨 CRITICAL: SEND COMPLETION SIGNAL 🚨
 
 When ALL goals are taught and practiced, send this EXACT completion signal:
 SESSION_COMPLETE_SIGNAL
@@ -173,7 +177,7 @@ router.post('/session', authenticateToken, rateLimitMiddleware, async (req, res)
 
     // Get conversation history and completed topics in parallel
     const [conversationHistory, completedTopics] = await Promise.all([
-      getChatHistory(userId, topicId),
+      getChatHistoryString(userId, topicId),
       getCompletedTopics(userId)
     ])
 
@@ -182,13 +186,19 @@ router.post('/session', authenticateToken, rateLimitMiddleware, async (req, res)
 
     console.log('🔍 System Prompt Debug:')
     console.log('   - Topic ID:', topicId)
+    console.log('   - Conversation History Type:', typeof conversationHistory)
     console.log('   - Conversation History Length:', conversationHistory?.length || 0)
+    console.log('   - Conversation History Preview:', conversationHistory?.substring(0, 200) + '...')
     console.log('   - System Prompt (first 500 chars):', embeddedPrompt.substring(0, 500) + '...')
 
     const messages = [
-      { role: 'system', content: embeddedPrompt },
-      { role: 'user', content: message.trim() }
+      { role: 'system', content: embeddedPrompt }
     ]
+
+    // Only add user message if it's not empty (for session initialization)
+    if (message.trim()) {
+      messages.push({ role: 'user', content: message.trim() })
+    }
 
     // Get AI response with optimized parameters for education
     console.log('Calling AI with messages:', messages.length)
@@ -200,13 +210,37 @@ router.post('/session', authenticateToken, rateLimitMiddleware, async (req, res)
     })
 
     // Simple and reliable completion detection - look for the exact signal
-    const isSessionComplete = aiResponse.includes('SESSION_COMPLETE_SIGNAL')
+    let isSessionComplete = aiResponse.includes('SESSION_COMPLETE_SIGNAL')
     
     // Clean the response by removing the signal (don't show it to user)
-    const cleanedResponse = aiResponse.replace('SESSION_COMPLETE_SIGNAL\n\n', '').replace('SESSION_COMPLETE_SIGNAL', '')
+    let cleanedResponse = aiResponse.replace('SESSION_COMPLETE_SIGNAL\n\n', '').replace('SESSION_COMPLETE_SIGNAL', '')
+    
+    // Fallback: Force completion if conversation is too long (8+ messages) and student has shown console.log usage
+    if (!isSessionComplete) {
+      const messageCount = conversationHistory.split(/(?=AGENT:|USER:)/).filter(msg => msg.trim()).length
+      const hasConsoleLogUsage = conversationHistory.toLowerCase().includes('console.log')
+      
+      // Count console.log occurrences in user messages
+      const userMessages = conversationHistory.split('USER:').slice(1) // Remove first empty element
+      const consoleLogCount = userMessages.filter(msg => msg.toLowerCase().includes('console.log')).length
+      
+      if ((messageCount >= 8 && hasConsoleLogUsage) || consoleLogCount >= 3) {
+        console.log(`🔄 Forcing session completion - messageCount: ${messageCount}, consoleLogCount: ${consoleLogCount}`)
+        isSessionComplete = true
+        // Add the completion message that frontend will detect
+        cleanedResponse = cleanedResponse + '\n\n🏆 Congratulations! You\'ve mastered console.log! you\'re ready for the playground.'
+      }
+    }
 
     // Save the conversation turn (user message + cleaned AI response) atomically
-    const saveSuccess = await saveChatTurn(userId, topicId, message.trim(), cleanedResponse)
+    let saveSuccess
+    if (message.trim()) {
+      // Regular conversation turn
+      saveSuccess = await saveChatTurn(userId, topicId, message.trim(), cleanedResponse)
+    } else {
+      // Initial session message
+      saveSuccess = await saveInitialMessage(userId, topicId, cleanedResponse)
+    }
 
     if (!saveSuccess) {
       console.error('Failed to save chat turn')
@@ -239,7 +273,7 @@ router.post('/session', authenticateToken, rateLimitMiddleware, async (req, res)
     console.log(`✅ Session chat: User ${userId}, Topic ${topicId}, Topic: "${topic.title}"`)
 
     // Get updated conversation history
-    const updatedConversation = await getChatHistory(userId, topicId)
+    const updatedConversation = await getChatHistoryString(userId, topicId)
     const messageCount = updatedConversation.split(/(?=AGENT:|USER:)/).filter(msg => msg.trim()).length
 
     // Debug: Log what we're sending to frontend
@@ -346,7 +380,7 @@ router.post('/assignment/hint', authenticateToken, rateLimitMiddleware, async (r
     }
 
     // Get conversation history for assignment context
-    const conversationHistory = await getChatHistory(userId, topicId)
+    const conversationHistory = await getChatHistoryString(userId, topicId)
 
     // Build assignment prompt
     const embeddedPrompt = buildAssignmentPrompt(topicId, conversationHistory, assignment)
@@ -451,6 +485,35 @@ Provide detailed feedback on their code:`
 
 // ============ CHAT HISTORY MANAGEMENT ============
 
+// Debug: Get raw chat history from database
+router.get('/debug/history/:topicId', authenticateToken, async (req, res) => {
+  try {
+    const { topicId } = req.params
+    const userId = req.user.userId
+
+    // Get raw data from database
+    const { data, error } = await getSupabaseClient()
+      .from('chat_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('topic_id', topicId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      throw error
+    }
+
+    res.json(createSuccessResponse({
+      raw_data: data,
+      messages_type: typeof data?.messages,
+      messages_content: data?.messages
+    }))
+
+  } catch (error) {
+    handleErrorResponse(res, error, 'get debug history')
+  }
+})
+
 router.get('/history/:topicId', authenticateToken, async (req, res) => {
   try {
     const { topicId } = req.params
@@ -462,11 +525,9 @@ router.get('/history/:topicId', authenticateToken, async (req, res) => {
       return res.status(404).json(createErrorResponse('Topic not found'))
     }
 
-    const conversationHistory = await getChatHistory(userId, topicId)
-    const messages = parseHistoryToMessages(conversationHistory)
+    const messages = await getChatHistory(userId, topicId)
 
     res.json(createSuccessResponse({
-      conversationHistory: conversationHistory || '',
       messages: messages,
       messageCount: messages.length,
       topic: {

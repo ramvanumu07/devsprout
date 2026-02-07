@@ -298,7 +298,7 @@
 
 .progress-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -342,6 +342,65 @@
 .continue-section {
   text-align: center;
   margin-bottom: 32px;
+}
+
+/* Current Learning Card */
+.current-learning-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.learning-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.learning-icon {
+  color: #10a37f;
+  flex-shrink: 0;
+}
+
+.learning-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.topic-info {
+  margin-left: 26px;
+}
+
+.topic-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.phase-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phase-icon {
+  color: #10a37f;
+  flex-shrink: 0;
+}
+
+.phase-name {
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .continue-btn {
@@ -491,7 +550,20 @@
   }
 
   .progress-stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .stat {
+    padding: 8px 4px;
+  }
+
+  .stat .number {
+    font-size: 1.25rem;
+  }
+
+  .stat .label {
+    font-size: 0.75rem;
   }
 
   .completed-list {
@@ -503,5 +575,27 @@
     width: 100%;
     max-width: 300px;
     justify-content: center;
+  }
+
+  /* Current Learning Card - Mobile */
+  .current-learning-card {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .topic-info {
+    margin-left: 20px;
+  }
+
+  .topic-title {
+    font-size: 1rem;
+  }
+
+  .learning-label {
+    font-size: 0.75rem;
+  }
+
+  .phase-name {
+    font-size: 0.8125rem;
   }
 }

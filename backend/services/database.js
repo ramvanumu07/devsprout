@@ -9,6 +9,11 @@ import { withPerformanceLogging, progressCache } from '../middleware/performance
 // ============ SUPABASE CLIENT ============
 let supabase = null
 
+// Development mode fallback data
+const DEV_USERS = new Map()
+const DEV_PROGRESS = new Map()
+const DEV_CHAT_SESSIONS = new Map()
+
 // Initialize database connection
 function initializeDatabase() {
   if (supabase) return supabase
@@ -16,8 +21,14 @@ function initializeDatabase() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Database configuration missing. Check SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.')
+  // Check if we have placeholder values (development mode)
+  const isPlaceholderConfig = !supabaseUrl || !supabaseKey || 
+    supabaseUrl.includes('your_') || supabaseKey.includes('your_')
+
+  if (isPlaceholderConfig) {
+    console.log(`[${new Date().toISOString()}] ⚠️  Running in DEVELOPMENT MODE - Using in-memory database`)
+    console.log(`[${new Date().toISOString()}] 📝 To use Supabase, update SUPABASE_URL and SUPABASE_SERVICE_KEY in .env`)
+    return 'DEV_MODE' // Special marker for development mode
   }
 
   try {
@@ -45,17 +56,60 @@ function initializeDatabase() {
 
 // ============ USER OPERATIONS ============
 
-export async function createUser(username, email, name, hashedPassword) {
+export async function createUser(username, email, name, hashedPassword, securityQuestion = null, securityAnswer = null) {
   const client = initializeDatabase()
-  const { data, error } = await client
-    .from('users')
-    .insert({
+  
+  // Development mode fallback
+  if (client === 'DEV_MODE') {
+    // Check for existing users
+    if (DEV_USERS.has(username)) {
+      throw new Error('Username already exists')
+    }
+    for (const user of DEV_USERS.values()) {
+      if (user.email === email) {
+        throw new Error('Email already exists')
+      }
+    }
+    
+    const userId = Date.now().toString()
+    const user = {
+      id: userId,
       username,
       email,
       name,
       password: hashedPassword,
-      has_access: true // Default access for Sara
-    })
+      security_question: securityQuestion,
+      security_answer: securityAnswer,
+      has_access: true,
+      email_verified: false, // Match schema default
+      created_at: new Date().toISOString()
+    }
+    DEV_USERS.set(username, user)
+    console.log(`[DEV] Created user: ${username}`)
+    return user
+  }
+
+  // Prepare user data - only include security fields if provided
+  const userData = {
+    username,
+    email,
+    name,
+    password: hashedPassword,
+    has_access: true, // Default access for Sara
+    email_verified: false // Explicit default
+  }
+
+  // Only add security fields if they're provided (avoid storing empty strings)
+  if (securityQuestion && securityQuestion.trim()) {
+    userData.security_question = securityQuestion.trim()
+  }
+  if (securityAnswer && securityAnswer.trim()) {
+    userData.security_answer = securityAnswer.trim()
+  }
+
+  const { data, error } = await client
+    .from('users')
+    .insert(userData)
     .select()
     .single()
 
@@ -73,22 +127,88 @@ export async function createUser(username, email, name, hashedPassword) {
   return data
 }
 
-export async function getUserByUsername(username) {
+export async function getUserById(userId) {
+  console.log(`🔍 [DB] Searching for user with ID: "${userId}"`)
   const client = initializeDatabase()
+  
+  // Development mode fallback
+  if (client === 'DEV_MODE') {
+    for (const user of DEV_USERS.values()) {
+      if (user.id === userId) {
+        console.log(`[DEV] Get user by ID: ${userId} - Found`)
+        return user
+      }
+    }
+    console.log(`[DEV] Get user by ID: ${userId} - Not found`)
+    return null
+  }
+
+  const { data, error } = await client
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      console.log(`🔍 [DB] No user found with ID: "${userId}"`)
+      return null
+    } else {
+      console.error(`❌ [DB] Database error searching for user ID "${userId}":`, error)
+      throw new Error(`Failed to get user by ID: ${error.message}`)
+    }
+  }
+  
+  console.log(`✅ [DB] User found: ${data.username} (ID: ${data.id})`)
+  return data
+}
+
+export async function getUserByUsername(username) {
+  console.log(`🔍 [DB] Searching for user with username: "${username}"`)
+  const client = initializeDatabase()
+  
+  // Development mode fallback
+  if (client === 'DEV_MODE') {
+    const user = DEV_USERS.get(username)
+    console.log(`[DEV] Get user by username: ${username} - ${user ? 'Found' : 'Not found'}`)
+    return user || null
+  }
+
   const { data, error } = await client
     .from('users')
     .select('*')
     .eq('username', username)
     .single()
 
-  if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to get user by username: ${error.message}`)
+  if (error) {
+    if (error.code === 'PGRST116') {
+      console.log(`🔍 [DB] No user found with username: "${username}"`)
+      return null
+    } else {
+      console.error(`❌ [DB] Database error searching for username "${username}":`, error)
+      throw new Error(`Failed to get user by username: ${error.message}`)
+    }
   }
+  
+  console.log(`✅ [DB] User found: ${data.username} (ID: ${data.id})`)
   return data
 }
 
 export async function getUserByEmail(email) {
   const client = initializeDatabase()
+  
+  // Development mode fallback
+  if (client === 'DEV_MODE') {
+    for (const user of DEV_USERS.values()) {
+      if (user.email === email) {
+        console.log(`[DEV] Get user by email: ${email} - Found`)
+        return user
+      }
+    }
+    console.log(`[DEV] Get user by email: ${email} - Not found`)
+    return null
+  }
+
   const { data, error } = await client
     .from('users')
     .select('*')
@@ -198,6 +318,18 @@ export async function getProgress(userId, topicId) {
 
   return await withPerformanceLogging(async () => {
     const client = initializeDatabase()
+    
+    // Development mode fallback
+    if (client === 'DEV_MODE') {
+      const progressKey = `${userId}:${topicId}`
+      const progress = DEV_PROGRESS.get(progressKey)
+      console.log(`[DEV] Get progress: ${progressKey} - ${progress ? 'Found' : 'Not found'}`)
+      if (progress) {
+        progressCache.set(cacheKey, progress)
+      }
+      return progress || null
+    }
+
     const { data, error } = await client
       .from('progress')
       .select('*')
@@ -221,6 +353,29 @@ export async function getProgress(userId, topicId) {
 export async function upsertProgress(userId, topicId, updates) {
   return await withPerformanceLogging(async () => {
     const client = initializeDatabase()
+    
+    // Development mode fallback
+    if (client === 'DEV_MODE') {
+      const progressKey = `${userId}:${topicId}`
+      const existingProgress = DEV_PROGRESS.get(progressKey) || {}
+      const newProgress = {
+        user_id: userId,
+        topic_id: topicId,
+        ...existingProgress,
+        ...updates,
+        last_accessed: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      DEV_PROGRESS.set(progressKey, newProgress)
+      
+      // Update cache
+      const cacheKey = `progress:${userId}:${topicId}`
+      progressCache.set(cacheKey, newProgress)
+      
+      console.log(`[DEV] Upserted progress: ${progressKey}`)
+      return newProgress
+    }
+
     const { data, error } = await client
       .from('progress')
       .upsert({
@@ -358,6 +513,20 @@ export async function markPasswordResetTokenUsed(tokenId) {
 
 export async function updateUserPassword(userId, hashedPassword) {
   const client = initializeDatabase()
+  
+  // Development mode fallback
+  if (client === 'DEV_MODE') {
+    for (const [username, user] of DEV_USERS.entries()) {
+      if (user.id === userId) {
+        user.password = hashedPassword
+        user.updated_at = new Date().toISOString()
+        console.log(`[DEV] Updated password for user: ${username}`)
+        return user
+      }
+    }
+    throw new Error('User not found in development mode')
+  }
+  
   const { data, error } = await client
     .from('users')
     .update({

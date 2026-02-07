@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Chat API</title>
+</head>
+<body>
+    <h1>Chat API Test</h1>
+    <button onclick="testChatHistory()">Test Chat History</button>
+    <div id="result"></div>
+
+    <script>
+        async function testChatHistory() {
+            try {
+                const response = await fetch('http://localhost:5000/api/chat/history/console-log', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // You'll need to get a valid token from your browser's localStorage
+                        'Authorization': 'Bearer ' + localStorage.getItem('sara_token')
+                    }
+                });
+                
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                console.log('Chat history response:', data);
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
